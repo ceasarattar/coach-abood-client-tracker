@@ -1,7 +1,10 @@
 import os
 import re
+import json
 import logging
 import logging.handlers
+import urllib.request
+import urllib.error
 import yaml
 from datetime import date, datetime, timedelta
 from urllib.parse import unquote, urlparse
@@ -12,6 +15,9 @@ from googleapiclient.errors import HttpError
 
 import sheets_client as sc
 import db
+import secrets_store
+import cronometer_client
+import nutrition_sync
 
 # ---------------------------------------------------------------------------
 # Paths + app + logging
@@ -73,6 +79,49 @@ def master_sheet_id(client: dict = None) -> str:
     env = load_env()
     return env.get('MASTER_SHEET_ID',
                    os.environ.get('MASTER_SHEET_ID', '')).strip()
+
+
+def _webapp_config() -> tuple:
+    """(url, secret) for the Apps Script template generator web app, or ('','')."""
+    env = load_env()
+    url = env.get('TEMPLATE_WEBAPP_URL',
+                  os.environ.get('TEMPLATE_WEBAPP_URL', '')).strip()
+    secret = env.get('TEMPLATE_WEBAPP_SECRET',
+                     os.environ.get('TEMPLATE_WEBAPP_SECRET', '')).strip()
+    return url, secret
+
+
+def trigger_template_generation(timeout: int = 120) -> dict:
+    """
+    POST to the Apps Script web app to generate a client file from the master
+    admin tabs. Returns the parsed JSON {ok, url, id, fileName, sharedWith}.
+
+    Raises RuntimeError on transport/auth failure or if the script reports an
+    error, so the caller can surface a clean message.
+    """
+    url, secret = _webapp_config()
+    if not url:
+        raise RuntimeError('TEMPLATE_WEBAPP_URL is not set in .env — cannot '
+                           'auto-generate. See docs/CLIENT_GENERATION.md.')
+    body = json.dumps({'secret': secret}).encode('utf-8')
+    req = urllib.request.Request(url, data=body,
+                                 headers={'Content-Type': 'application/json'})
+    try:
+        # Apps Script /exec answers a POST with a 302 to googleusercontent;
+        # urllib follows it automatically and returns the final JSON body.
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode('utf-8')
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f'Could not reach the generator web app: {exc}') from exc
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError('Generator returned an unexpected (non-JSON) '
+                           'response — re-check the deployment.') from exc
+    if not data.get('ok'):
+        raise RuntimeError(data.get('error', 'Generator reported an error.'))
+    return data
 
 
 def _load_clients() -> list:
@@ -639,9 +688,10 @@ def _client_setup_updates(data: dict) -> list:
         updates.append({'range': f"'⚙ Week & RIR'!A4:B{end}",
                         'values': rir_rows})
 
-    # Targets (B3:B7 = calories, protein, carbs, fat, fiber).
+    # Targets (B2:B6 = calories, protein, carbs, fat, fiber).
+    # NOTE: must match the Apps Script generator, which reads ⚙ Targets!B2:B6.
     t = data['targets']
-    updates.append({'range': "'⚙ Targets'!B3:B7", 'values': [
+    updates.append({'range': "'⚙ Targets'!B2:B6", 'values': [
         [t['calories']], [t['protein']], [t['carbs']], [t['fat']], [t['fiber']],
     ]})
     return updates
@@ -684,13 +734,13 @@ def clients_new():
 
     if request.method == 'POST' and action == 'write_master':
         data = _parse_wizard_form(request.form)
+        info = data['info']
+
+        # 1) Fill the master admin tabs (the Apps Script reads these).
         try:
             service = sc.authenticate()
             updates = _client_setup_updates(data)
             sc.batch_update_values(service, master_sheet_id(), updates)
-            flash('Data written to the master sheet. Now open the master '
-                  'spreadsheet and click Coach Tools → Generate Client '
-                  'Template, then paste the new sheet URL below.', 'ok')
         except FileNotFoundError:
             return _credentials_missing_page()
         except sc.ReauthRequired:
@@ -698,6 +748,49 @@ def clients_new():
         except Exception as exc:
             logger.error('Wizard master write failed: %s', exc, exc_info=True)
             flash(f'Write to master sheet failed: {exc}', 'error')
+            return render_template('client_new.html', programs=db.list_programs(),
+                                   days=db.DAYS, workout_types=db.WORKOUT_TYPES,
+                                   wrote_master=False, form=request.form)
+
+        # 2) If the generator web app is configured, do the whole thing in one
+        #    click: run the Apps Script, grab the new sheet, auto-register it.
+        webapp_url, _ = _webapp_config()
+        if webapp_url:
+            try:
+                result = trigger_template_generation()
+                new_id = extract_sheet_id(result.get('url', ''))
+                if not new_id:
+                    raise RuntimeError('Generator did not return a sheet URL.')
+                clients = _load_clients()
+                if not any(c.get('name', '').strip().lower()
+                           == info['name'].strip().lower() for c in clients):
+                    clients.append({
+                        'name': info['name'],
+                        'spreadsheet_id': new_id,
+                        'master_spreadsheet_id': '',
+                        'plan_usd': _to_number(info.get('plan_usd'), 0),
+                        'weight_unit': info.get('weight_unit', 'kg'),
+                        'active': True,
+                    })
+                    _save_clients(clients)
+                shared = result.get('sharedWith') or ''
+                tail = (f' Shared with {shared}.'
+                        if shared and not shared.startswith('ERROR') else '')
+                flash(f"Client sheet generated and registered.{tail}", 'ok')
+                return redirect(url_for('client_detail', name=info['name']))
+            except Exception as exc:
+                logger.error('Auto-generate failed: %s', exc, exc_info=True)
+                flash(f'Master sheet updated, but auto-generate failed: {exc} '
+                      'You can run Coach Tools → Generate Client Template '
+                      'manually and register the sheet below.', 'error')
+                return render_template('client_new.html', programs=db.list_programs(),
+                                       days=db.DAYS, workout_types=db.WORKOUT_TYPES,
+                                       wrote_master=True, form=request.form)
+
+        # 3) No web app configured — fall back to the manual generate+register.
+        flash('Data written to the master sheet. Now open the master '
+              'spreadsheet and click Coach Tools → Generate Client '
+              'Template, then paste the new sheet URL below.', 'ok')
         return render_template('client_new.html', programs=db.list_programs(),
                                days=db.DAYS, workout_types=db.WORKOUT_TYPES,
                                wrote_master=True, form=request.form)
@@ -875,6 +968,64 @@ def client_log(name):
 
     return render_template('client_log.html', client=client,
                            today=date.today().strftime('%d/%m/%Y'))
+
+
+# ---------------------------------------------------------------------------
+# Cronometer nutrition sync — /client/<name>/cronometer
+# ---------------------------------------------------------------------------
+
+@app.route('/client/<path:name>/cronometer', methods=['GET', 'POST'])
+def client_cronometer(name):
+    name = unquote(name)
+    clients = _load_clients()
+    client = next((c for c in clients if c['name'] == name), None)
+    if client is None:
+        abort(404)
+
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+
+        if action == 'save':
+            email = (request.form.get('cron_email') or '').strip()
+            password = (request.form.get('cron_password') or '').strip()
+            if not email or not password:
+                flash('Both the Cronometer email and password are required.', 'error')
+            else:
+                secrets_store.set_credentials(name, email, password)
+                flash('Cronometer credentials saved (encrypted on this machine).', 'ok')
+
+        elif action == 'delete':
+            secrets_store.delete_credentials(name)
+            flash('Cronometer credentials removed.', 'ok')
+
+        elif action == 'sync':
+            creds = secrets_store.get_credentials(name)
+            if not creds:
+                flash('Add the client\'s Cronometer login first.', 'error')
+                return redirect(url_for('client_cronometer', name=name))
+            try:
+                service = sc.authenticate()
+            except FileNotFoundError:
+                return _credentials_missing_page()
+            except sc.ReauthRequired:
+                return redirect(url_for('reauth'))
+            try:
+                days = _to_number(request.form.get('days'), 14) or 14
+                rows = cronometer_client.fetch_daily_nutrition(
+                    creds['email'], creds['password'], days=int(days))
+                result = nutrition_sync.sync_to_sheet(
+                    service, client['spreadsheet_id'], rows)
+                flash(f"Synced {result['written']} day(s) of calories "
+                      f"({result['skipped']} skipped — no matching date row).", 'ok')
+            except Exception as exc:
+                logger.error('Cronometer sync failed for %s: %s', name, exc,
+                             exc_info=True)
+                flash(f'Cronometer sync failed: {exc}', 'error')
+
+        return redirect(url_for('client_cronometer', name=name))
+
+    return render_template('client_cronometer.html', client=client,
+                           has_creds=secrets_store.has_credentials(name))
 
 
 if __name__ == '__main__':

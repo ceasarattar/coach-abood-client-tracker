@@ -39,6 +39,8 @@ REM 3. Dependencies ----------------------------------------------------------
 echo [3/8] Installing dependencies from requirements.txt ...
 python -m pip install --upgrade pip >nul
 pip install -r requirements.txt
+echo     Installing the Cronometer browser (Playwright Chromium, ~150 MB) ...
+python -m playwright install chromium || echo     (Playwright browser install skipped - run "python -m playwright install chromium" later if you use Cronometer sync.)
 
 REM 4. .env (interactive) ----------------------------------------------------
 if exist ".env" (

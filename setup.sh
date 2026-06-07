@@ -37,8 +37,10 @@ source venv/bin/activate
 
 # 3. Dependencies ------------------------------------------------------------
 echo "[3/7] Installing dependencies from requirements.txt ..."
+# (after pip install below, also fetch the Cronometer browser — best effort)
 pip install --upgrade pip >/dev/null
 pip install -r requirements.txt
+python -m playwright install chromium || echo "  (Playwright browser install skipped — run 'python -m playwright install chromium' later if you use Cronometer sync.)"
 
 # 4 & 5. .env (interactive) --------------------------------------------------
 if [ -f ".env" ]; then

@@ -4,3 +4,7 @@ google-auth-oauthlib>=1.0
 google-auth-httplib2>=0.2
 google-api-python-client>=2.0
 PyYAML>=6.0
+
+# Cronometer sync
+cryptography>=42.0        # encrypts stored client Cronometer logins
+playwright>=1.40          # drives Cronometer's CSV export (needs: playwright install chromium)

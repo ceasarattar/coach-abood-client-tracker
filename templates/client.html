@@ -20,6 +20,10 @@
   </p>
   {% endif %}
   </div>
+  <div class="header-actions">
+    <a href="{{ url_for('client_log', name=d.name) }}" class="btn btn-small">Log entry</a>
+    <a href="{{ url_for('client_cronometer', name=d.name) }}" class="btn btn-small">Cronometer</a>
+  </div>
 </div>
 
 {% if d.error %}
