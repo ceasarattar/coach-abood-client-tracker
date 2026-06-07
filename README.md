@@ -1,3 +1,6 @@
+<!-- Resuming work / picking up on another machine? Start with
+     docs/PROJECT_STATUS.md — it has current state, pending steps, and how to run. -->
+
 # Coach Abood LLC — Client Tracker
 
 A local-only Flask web app that is the single control panel for Coach Abood.
