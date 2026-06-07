@@ -1,0 +1,18 @@
+# Secrets — never commit
+credentials.json
+token.json
+.env
+
+# Local, per-machine data
+clients.yaml
+coach_data.db
+*.db
+logs/
+
+# Python / env
+*.pyc
+__pycache__/
+venv/
+
+# OS
+.DS_Store

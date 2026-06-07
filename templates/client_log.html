@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Log Entry — {{ client.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('client_detail', name=client.name) }}" class="back-link">&#8592; {{ client.name }}</a>
+    <h1 class="page-title">Log Entry — {{ client.name }}</h1>
+    <p class="page-sub">Write data on behalf of the client. Dates use dd/mm/yyyy.</p>
+  </div>
+</div>
+
+<div class="tables-grid">
+  <!-- Weight entry -->
+  <section class="form-card">
+    <h2 class="section-title">Log weight</h2>
+    <form method="post">
+      <input type="hidden" name="kind" value="weight">
+      <label class="field">
+        <span class="field-label">Date (dd/mm/yyyy)</span>
+        <input type="text" name="date" value="{{ today }}" placeholder="dd/mm/yyyy" required>
+      </label>
+      <label class="field">
+        <span class="field-label">Weight ({{ client.weight_unit or 'kg' }})</span>
+        <input type="text" name="weight" placeholder="e.g. 80.4" required>
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save weight</button>
+      </div>
+      <p class="metric-sub">Writes to the matching date row in the Weight tab (col B).</p>
+    </form>
+  </section>
+
+  <!-- Payment received -->
+  <section class="form-card">
+    <h2 class="section-title">Mark payment received</h2>
+    <form method="post">
+      <input type="hidden" name="kind" value="payment">
+      <label class="field">
+        <span class="field-label">Paid date (dd/mm/yyyy)</span>
+        <input type="text" name="paid_date" value="{{ today }}" placeholder="dd/mm/yyyy" required>
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Mark paid</button>
+      </div>
+      <p class="metric-sub">Updates Last Paid Date in the master Payments tab (col D).</p>
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'New' if mode == 'new' else 'Edit' }} Program — Coach Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('library') }}" class="back-link">&#8592; Library</a>
+    <h1 class="page-title">{{ 'New Program' if mode == 'new' else 'Edit Program' }}</h1>
+  </div>
+</div>
+
+<form method="post" class="form-card">
+  <label class="field">
+    <span class="field-label">Program name</span>
+    <input type="text" name="name" value="{{ program.name }}" required placeholder="e.g. PPL Hypertrophy">
+  </label>
+  <label class="field">
+    <span class="field-label">Notes (optional)</span>
+    <input type="text" name="notes" value="{{ program.notes }}" placeholder="short description">
+  </label>
+
+  <h2 class="section-title">Weekly schedule</h2>
+  <div class="schedule-grid">
+    {% for s in program.schedule %}
+    <label class="field">
+      <span class="field-label">{{ s.day_name }}</span>
+      <input type="text" name="schedule_{{ s.day_name }}" list="wt-list"
+             value="{{ s.workout_type or 'Rest' }}" placeholder="Rest">
+    </label>
+    {% endfor %}
+  </div>
+
+  <h2 class="section-title">Exercises</h2>
+  <table class="data-table" id="ex-table">
+    <thead>
+      <tr><th>Type</th><th>Exercise</th><th>Sets</th><th>Reps</th><th>Coach notes</th><th>Tutorial URL</th><th></th></tr>
+    </thead>
+    <tbody id="ex-body">
+      {% for e in program.exercises %}
+      <tr>
+        <td><input type="text" name="ex_type" list="wt-list" value="{{ e.workout_type }}" placeholder="day"></td>
+        <td><input type="text" name="ex_name" value="{{ e.exercise }}"></td>
+        <td><input type="text" name="ex_sets" value="{{ e.target_sets }}" class="narrow"></td>
+        <td><input type="text" name="ex_reps" value="{{ e.target_reps }}" class="narrow"></td>
+        <td><input type="text" name="ex_notes" value="{{ e.coach_notes }}"></td>
+        <td><input type="text" name="ex_url" value="{{ e.tutorial_url }}"></td>
+        <td><button type="button" class="btn btn-small btn-danger" onclick="removeRow(this)">&times;</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button type="button" class="btn btn-small" onclick="addRow()">+ Add exercise</button>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">{{ 'Create program' if mode == 'new' else 'Save changes' }}</button>
+    <a href="{{ url_for('library') }}" class="btn">Cancel</a>
+  </div>
+</form>
+
+<datalist id="wt-list">
+  {% for wt in workout_types %}<option value="{{ wt }}"></option>{% endfor %}
+</datalist>
+
+<template id="ex-row-template">
+  <tr>
+    <td><input type="text" name="ex_type" list="wt-list" placeholder="day"></td>
+    <td><input type="text" name="ex_name"></td>
+    <td><input type="text" name="ex_sets" class="narrow"></td>
+    <td><input type="text" name="ex_reps" class="narrow"></td>
+    <td><input type="text" name="ex_notes"></td>
+    <td><input type="text" name="ex_url"></td>
+    <td><button type="button" class="btn btn-small btn-danger" onclick="removeRow(this)">&times;</button></td>
+  </tr>
+</template>
+
+<script>
+function addRow() {
+  var tpl = document.getElementById('ex-row-template');
+  document.getElementById('ex-body').appendChild(tpl.content.cloneNode(true));
+}
+function removeRow(btn) {
+  btn.closest('tr').remove();
+}
+// Start with one empty row if none exist.
+if (!document.querySelector('#ex-body tr')) { addRow(); }
+</script>
+{% endblock %}

@@ -1,0 +1,244 @@
+"""
+Google Sheets API client for the Coach Abood dashboard.
+
+Handles OAuth (read + write), batched reads (batchGet) with graceful fallback
+when a named range is missing, batched writes (values batchUpdate), and tab
+listing.
+
+Hard rules (project Section 6):
+  * Never reference a sheet by getSheetById — always by name string.
+  * All reads go through batchGet; all writes through values batchUpdate.
+  * OAuth scope is read + write: spreadsheets (NOT spreadsheets.readonly).
+"""
+import os
+import time
+import logging
+
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+logger = logging.getLogger(__name__)
+
+# Read + write scope (upgraded from spreadsheets.readonly).
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+
+# Resolve credential/token paths relative to this file so the launch CWD
+# does not matter.
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TOKEN_PATH = os.path.join(_BASE_DIR, 'token.json')
+CREDS_PATH = os.path.join(_BASE_DIR, 'credentials.json')
+
+# Named ranges that exist in a generated client sheet (verified against the
+# real workbook). WorkoutDates / WorkoutCompletion / WorkoutVolume were removed
+# (the workout layout is now per-week tabs read directly by name). CalorieTarget
+# and Payment_Status_Range never existed as named ranges.
+CLIENT_NAMED_RANGES = [
+    'WeightDates',          # Weight!A2:A
+    'WeightValues',         # Weight!B2:B
+    'WeightMA7',            # Weight!D2:D  (running avg, used as MA proxy)
+    'WeeklyAvg',            # Weight!E2:E
+    'DailyTotal_Calories',  # Nutrition!B34 (single cell — today's total)
+]
+
+# A1 fallback for each named range, used if the named range 404s on the live
+# sheet (e.g. an older sheet generated before the range was added).
+NAMED_RANGE_A1_FALLBACK = {
+    'WeightDates': 'Weight!A2:A',
+    'WeightValues': 'Weight!B2:B',
+    'WeightMA7': 'Weight!D2:D',
+    'WeeklyAvg': 'Weight!E2:E',
+    'DailyTotal_Calories': 'Nutrition!B34',
+}
+
+# Dated daily-calorie history lives on the Weight tab (col J = Calories,
+# dates in col A). This is the data path a future Cronometer importer will
+# populate. Read by A1 (no named range).
+WEIGHT_CALORIES_RANGE = 'Weight!J2:J'
+
+# Master sheet Payments tab. Header is on row 2, data from row 3. No named
+# range exists on the master sheet, so this is read by A1.
+PAYMENTS_RANGE = 'Payments!A3:I'
+
+
+class ReauthRequired(Exception):
+    """Raised when stored credentials cannot be refreshed and need re-auth."""
+    pass
+
+
+def authenticate(force: bool = False):
+    """Return an authorized Sheets service. Runs browser OAuth if needed."""
+    creds = None
+
+    if not force and os.path.exists(TOKEN_PATH):
+        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+
+    if not creds or not creds.valid:
+        if not force and creds and creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                _save_token(creds)
+            except Exception as exc:
+                logger.warning('Token refresh failed: %s', exc)
+                raise ReauthRequired(str(exc)) from exc
+        else:
+            if not os.path.exists(CREDS_PATH):
+                raise FileNotFoundError(
+                    f'{CREDS_PATH} not found. '
+                    'Download it from Google Cloud Console (see README.md).'
+                )
+            flow = InstalledAppFlow.from_client_secrets_file(CREDS_PATH, SCOPES)
+            creds = flow.run_local_server(port=0)
+            _save_token(creds)
+
+    return build('sheets', 'v4', credentials=creds)
+
+
+def _save_token(creds: Credentials) -> None:
+    with open(TOKEN_PATH, 'w') as fh:
+        fh.write(creds.to_json())
+    logger.info('Token saved to %s', TOKEN_PATH)
+
+
+def _batch_get(service, spreadsheet_id: str, ranges: list) -> dict:
+    """Single batchGet with 429 exponential backoff. Returns the raw response."""
+    max_retries = 3
+    delay = 1
+    for attempt in range(max_retries):
+        try:
+            return (
+                service.spreadsheets()
+                .values()
+                .batchGet(spreadsheetId=spreadsheet_id, ranges=ranges)
+                .execute()
+            )
+        except HttpError as exc:
+            if exc.resp.status == 429 and attempt < max_retries - 1:
+                logger.warning(
+                    'Rate limited (429) for %s — retrying in %ds (%d/%d)',
+                    spreadsheet_id, delay, attempt + 1, max_retries,
+                )
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise
+    raise RuntimeError('_batch_get: unreachable')
+
+
+def fetch_client_data(service, spreadsheet_id: str) -> dict:
+    """
+    Fetch all client data needed by the dashboard in as few calls as possible.
+
+    Returns a dict keyed by logical name -> value matrix (list of rows):
+        WeightDates, WeightValues, WeightMA7, WeeklyAvg, DailyTotal_Calories,
+        WeightCalories
+    Missing named ranges degrade gracefully via an A1 fallback so one absent
+    range cannot blank out the whole page.
+    """
+    ranges = list(CLIENT_NAMED_RANGES) + [WEIGHT_CALORIES_RANGE]
+    try:
+        raw = _batch_get(service, spreadsheet_id, ranges)
+        vrs = raw.get('valueRanges', [])
+        data = {
+            name: vrs[i].get('values', []) if i < len(vrs) else []
+            for i, name in enumerate(CLIENT_NAMED_RANGES)
+        }
+        idx = len(CLIENT_NAMED_RANGES)
+        data['WeightCalories'] = vrs[idx].get('values', []) if idx < len(vrs) else []
+        return data
+    except HttpError as exc:
+        logger.warning(
+            'batchGet failed for %s (%s); retrying ranges individually',
+            spreadsheet_id, exc,
+        )
+        return _fetch_client_data_individually(service, spreadsheet_id)
+
+
+def _fetch_client_data_individually(service, spreadsheet_id: str) -> dict:
+    """Fallback path: fetch each range alone, swapping in A1 if a name 404s."""
+    data: dict = {}
+    for name in CLIENT_NAMED_RANGES:
+        data[name] = _safe_get(service, spreadsheet_id, name,
+                               NAMED_RANGE_A1_FALLBACK.get(name))
+    data['WeightCalories'] = _safe_get(
+        service, spreadsheet_id, WEIGHT_CALORIES_RANGE, None
+    )
+    return data
+
+
+def _safe_get(service, spreadsheet_id: str, primary: str, fallback) -> list:
+    """Get one range; if it fails and a fallback A1 is given, try that."""
+    for rng in (primary, fallback):
+        if not rng:
+            continue
+        try:
+            res = (
+                service.spreadsheets()
+                .values()
+                .get(spreadsheetId=spreadsheet_id, range=rng)
+                .execute()
+            )
+            return res.get('values', [])
+        except HttpError as exc:
+            logger.warning("Range '%s' unavailable in %s: %s",
+                          rng, spreadsheet_id, exc)
+    return []
+
+
+def fetch_payments(service, master_spreadsheet_id: str) -> list:
+    """
+    Read the master sheet's Payments tab (rows from row 3) via batchGet.
+    Returns a list of rows (each a list of cell strings). Empty on failure.
+    """
+    if not master_spreadsheet_id:
+        return []
+    try:
+        raw = _batch_get(service, master_spreadsheet_id, [PAYMENTS_RANGE])
+        vrs = raw.get('valueRanges', [])
+        return vrs[0].get('values', []) if vrs else []
+    except HttpError as exc:
+        logger.error('Payments read failed for %s: %s',
+                     master_spreadsheet_id, exc)
+        return []
+
+
+def get_sheet_tab_names(service, spreadsheet_id: str) -> list:
+    """Return the list of tab (sheet) title strings — never by id."""
+    meta = (
+        service.spreadsheets()
+        .get(spreadsheetId=spreadsheet_id, fields='sheets.properties.title')
+        .execute()
+    )
+    return [s['properties']['title'] for s in meta.get('sheets', [])]
+
+
+def fetch_ranges(service, spreadsheet_id: str, ranges: list) -> dict:
+    """
+    Generic batchGet of arbitrary A1/named ranges.
+    Returns {range_string: value_matrix}.
+    """
+    raw = _batch_get(service, spreadsheet_id, ranges)
+    vrs = raw.get('valueRanges', [])
+    return {
+        ranges[i]: (vrs[i].get('values', []) if i < len(vrs) else [])
+        for i in range(len(ranges))
+    }
+
+
+def batch_update_values(service, spreadsheet_id: str, updates: list,
+                        value_input_option: str = 'USER_ENTERED') -> dict:
+    """
+    Write multiple ranges in a single values batchUpdate.
+
+    `updates` is a list of {'range': '<A1 or named>', 'values': [[...], ...]}.
+    USER_ENTERED makes Sheets parse dates/numbers the way a human entry would.
+    """
+    body = {'valueInputOption': value_input_option, 'data': updates}
+    return (
+        service.spreadsheets()
+        .values()
+        .batchUpdate(spreadsheetId=spreadsheet_id, body=body)
+        .execute()
+    )

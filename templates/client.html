@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+{% block title %}{{ d.name }} — Coach Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('index') }}" class="back-link">&#8592; All Clients</a>
+    <h1 class="page-title">
+      <span class="status-dot dot-{{ d.status }}" title="Status: {{ d.status }}"></span>
+      {{ d.name }}
+    </h1>
+    <p class="page-sub">${{ d.plan_usd }}/mo &mdash; Payment: <span class="badge {{ d.payment_class }}">{{ d.payment_display }}</span></p>
+  {% if not d.error %}
+  <p class="page-sub">
+    Last workout logged:
+    {% if d.last_logged %}
+      <strong>{{ d.last_logged.date }}</strong>
+      ({% if d.last_logged.days_ago == 0 %}today{% elif d.last_logged.days_ago == 1 %}yesterday{% else %}{{ d.last_logged.days_ago }} days ago{% endif %})
+    {% else %}<span class="no-data">never</span>{% endif %}
+  </p>
+  {% endif %}
+  </div>
+</div>
+
+{% if d.error %}
+<div class="error-block error-block-lg">
+  <span class="error-icon">&#9888;</span>
+  <span>{{ d.error }}</span>
+</div>
+
+{% else %}
+
+<!-- ── Weight Chart ─────────────────────────────────────────────────────── -->
+<section class="chart-section">
+  <h2 class="section-title">Weight — Last 30 Days</h2>
+  <div id="chart-weight" class="chart-container"></div>
+</section>
+
+<!-- ── Workout Summary (week-by-week) ──────────────────────────────────── -->
+<section class="chart-section">
+  <h2 class="section-title">Workout Log — Sessions Completed by Week</h2>
+  {% if d.week_summary %}
+  <table class="data-table">
+    <thead>
+      <tr><th>Week</th><th>Sessions logged</th><th>Progress</th></tr>
+    </thead>
+    <tbody>
+      {% for w in d.week_summary %}
+      <tr>
+        <td>{{ w.week }}</td>
+        <td>{{ w.logged }} / {{ w.total }}</td>
+        <td>
+          <div class="progress-wrap">
+            <div class="progress-bar"
+                 style="width: {{ (100 * w.logged / w.total) if w.total else 0 }}%"></div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="no-data">No week tabs found for this client.</p>
+  {% endif %}
+</section>
+
+<!-- ── Calorie Chart ──────────────────────────────────────────────────── -->
+<section class="chart-section">
+  <h2 class="section-title">Daily Calories — Last 30 Days</h2>
+  <div id="chart-calories" class="chart-container"></div>
+</section>
+
+<!-- ── Tables ─────────────────────────────────────────────────────────── -->
+<div class="tables-grid">
+
+  <!-- Raw weight -->
+  <section class="table-section">
+    <h2 class="section-title">Last 14 Weight Entries</h2>
+    {% if d.weight_table %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Date</th><th>Weight ({{ d.weight_unit }})</th></tr>
+      </thead>
+      <tbody>
+        {% for row_date, row_val in d.weight_table | reverse %}
+        <tr>
+          <td>{{ row_date }}</td>
+          <td>{{ row_val }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="no-data">No weight data available.</p>
+    {% endif %}
+  </section>
+
+  <!-- Payments -->
+  <section class="table-section">
+    <h2 class="section-title">Payment Status</h2>
+    {% if d.payment_record %}
+    <table class="data-table">
+      <tbody>
+        {% for col in d.payment_columns %}
+        {% set val = d.payment_record[col] %}
+        {% if val not in (none, '') %}
+        <tr>
+          <th style="text-align:left">{{ col }}</th>
+          <td>
+            {% if col == 'Status' %}
+              {% set upper = val | upper %}
+              {% if 'OVERDUE' in upper %}<span class="badge badge-red">{{ val }}</span>
+              {% elif upper == 'DUE SOON' %}<span class="badge badge-yellow">{{ val }}</span>
+              {% elif upper in ('OK', 'PAID') %}<span class="badge badge-green">{{ val }}</span>
+              {% else %}{{ val }}{% endif %}
+            {% else %}{{ val }}{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="no-data">No payment row found in the master sheet for this client.</p>
+    {% endif %}
+  </section>
+
+</div><!-- /tables-grid -->
+
+
+<!-- ── Plotly charts ──────────────────────────────────────────────────── -->
+<script>
+(function () {
+  var darkLayout = {
+    paper_bgcolor: '#1e293b',
+    plot_bgcolor: '#1e293b',
+    font: { color: '#cbd5e1', family: 'system-ui, sans-serif', size: 12 },
+    margin: { t: 20, b: 50, l: 55, r: 20 },
+    xaxis: {
+      gridcolor: '#334155',
+      linecolor: '#475569',
+      tickcolor: '#475569',
+    },
+    yaxis: {
+      gridcolor: '#334155',
+      linecolor: '#475569',
+      tickcolor: '#475569',
+    },
+    showlegend: true,
+    legend: { bgcolor: 'transparent', font: { color: '#94a3b8' } },
+  };
+  var config = { displayModeBar: false, responsive: true };
+
+  // ── Weight chart ────────────────────────────────────────────────────
+  var weightDates  = {{ d.weight_30d_dates   | tojson }};
+  var weightValues = {{ d.weight_30d_values  | tojson }};
+  var weightMA7    = {{ d.weight_30d_ma7     | tojson }};
+
+  var weightTraces = [];
+  if (weightDates.length) {
+    weightTraces.push({
+      x: weightDates, y: weightValues,
+      type: 'scatter', mode: 'markers+lines',
+      name: 'Weight (lbs)',
+      line: { color: '#38bdf8', width: 2 },
+      marker: { color: '#38bdf8', size: 5 },
+    });
+  }
+  if (weightMA7.length) {
+    weightTraces.push({
+      x: weightDates, y: weightMA7,
+      type: 'scatter', mode: 'lines',
+      name: '7-Day MA',
+      line: { color: '#f59e0b', width: 2, dash: 'dot' },
+    });
+  }
+
+  if (weightTraces.length) {
+    Plotly.newPlot('chart-weight', weightTraces,
+      Object.assign({}, darkLayout, {
+        yaxis: Object.assign({}, darkLayout.yaxis, { title: 'lbs' }),
+      }), config);
+  } else {
+    document.getElementById('chart-weight').innerHTML =
+      '<p class="no-data" style="padding:2rem">No weight data for the last 30 days.</p>';
+  }
+
+  // ── Calorie chart (dated daily totals from Weight!J) ──────────────────
+  var calDates  = {{ d.cal_dates     | tojson }};
+  var calValues = {{ d.cal_values    | tojson }};
+
+  if (calDates.length) {
+    var calTraces = [{
+      x: calDates, y: calValues,
+      type: 'bar',
+      name: 'Daily Calories',
+      marker: { color: '#38bdf8' },
+    }];
+    Plotly.newPlot('chart-calories', calTraces,
+      Object.assign({}, darkLayout, {
+        yaxis: Object.assign({}, darkLayout.yaxis, { title: 'kcal' }),
+      }), config);
+  } else {
+    document.getElementById('chart-calories').innerHTML =
+      '<p class="no-data" style="padding:2rem">No calorie data for the last 30 days.</p>';
+  }
+})();
+</script>
+
+{% endif %}
+{% endblock %}

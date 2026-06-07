@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Setup Required — Coach Dashboard{% endblock %}
+{% block content %}
+<div style="max-width:640px;margin:4rem auto;">
+  <div style="background:#1e293b;border:1px solid #f59e0b;border-radius:12px;padding:2rem 2.5rem;">
+    <h1 style="font-size:1.3rem;font-weight:700;color:#f59e0b;margin-bottom:1rem;">
+      &#9888; One-time setup required
+    </h1>
+    <p style="color:#cbd5e1;margin-bottom:1.5rem;">
+      <code style="background:#0f172a;padding:.15rem .4rem;border-radius:4px;color:#38bdf8;">credentials.json</code>
+      is missing. Follow these steps once to connect to Google Sheets:
+    </p>
+
+    <ol style="color:#94a3b8;line-height:2;padding-left:1.4rem;">
+      <li>Go to <strong style="color:#f1f5f9;">console.cloud.google.com</strong> → New Project → name it <em>coach-dashboard</em></li>
+      <li>APIs &amp; Services → Library → enable <strong style="color:#f1f5f9;">Google Sheets API</strong></li>
+      <li>OAuth consent screen → External → Testing<br>
+          Add your Gmail as a Test User &amp; add scope <code style="color:#38bdf8;">spreadsheets</code> (read + write)</li>
+      <li>Credentials → Create Credentials → <strong style="color:#f1f5f9;">OAuth client ID → Desktop app</strong><br>
+          Download JSON → save as <code style="background:#0f172a;padding:.15rem .4rem;border-radius:4px;color:#38bdf8;">credentials.json</code>
+          inside the <code style="color:#f1f5f9;">coach_dashboard/</code> folder</li>
+      <li>Restart the server — a browser tab will open for Google sign-in</li>
+    </ol>
+
+    <p style="margin-top:1.5rem;color:#64748b;font-size:.8rem;">
+      Full instructions are in <strong>README.md</strong> in the project folder.
+    </p>
+  </div>
+</div>
+{% endblock %}

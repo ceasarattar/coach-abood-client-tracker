@@ -1,0 +1,22 @@
+# Coach Abood Dashboard — client registry (EXAMPLE).
+#
+# Copy this file to "clients.yaml" (or just add clients from the app's
+# "+ Add Client" page, which writes here for you). The real clients.yaml is
+# gitignored so client sheet IDs are never committed.
+#
+# Fields per client:
+#   name                  - display name; MUST match the client's row in the
+#                           master Payments tab (col A) for payment matching
+#   spreadsheet_id        - the client's own Google Sheet ID (from its URL)
+#   master_spreadsheet_id - (optional) override the global MASTER_SHEET_ID
+#   plan_usd              - monthly plan price
+#   weight_unit           - "kg" or "lbs" (display only)
+#   active                - true/false
+
+clients:
+  - name: "Example Client"
+    spreadsheet_id: "REPLACE_WITH_CLIENT_SHEET_ID"
+    master_spreadsheet_id: ""
+    plan_usd: 150
+    weight_unit: "kg"
+    active: true

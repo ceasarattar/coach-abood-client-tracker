@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Workout Library — Coach Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Workout Library</h1>
+    <p class="page-sub">{{ programs | length }} saved program{{ 's' if programs | length != 1 }}</p>
+  </div>
+  {% if programs %}
+  <a href="{{ url_for('library_new') }}" class="btn btn-primary">+ New Program</a>
+  {% endif %}
+</div>
+
+{% if programs %}
+<table class="data-table">
+  <thead>
+    <tr><th>Name</th><th>Training days</th><th>Exercises</th><th>Updated</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for p in programs %}
+    <tr>
+      <td><strong>{{ p.name }}</strong>{% if p.notes %}<div class="metric-sub">{{ p.notes }}</div>{% endif %}</td>
+      <td>{{ p.training_days }}</td>
+      <td>{{ p.exercise_count }}</td>
+      <td class="metric-sub">{{ p.updated_at }}</td>
+      <td style="white-space:nowrap;text-align:right">
+        <a href="{{ url_for('library_edit', program_id=p.id) }}" class="btn btn-small">Edit</a>
+        <form method="post" action="{{ url_for('library_delete', program_id=p.id) }}"
+              style="display:inline" onsubmit="return confirm('Delete program “{{ p.name }}”? This cannot be undone.');">
+          <button type="submit" class="btn btn-small btn-danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+  <p>No programs yet.</p>
+  <a href="{{ url_for('library_new') }}" class="btn btn-primary">Create your first program</a>
+</div>
+{% endif %}
+{% endblock %}

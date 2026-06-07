@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block title %}Clients — Coach Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Client Overview</h1>
+    <p class="page-sub">{{ cards | length }} active client{{ 's' if cards | length != 1 }}</p>
+  </div>
+</div>
+
+{% if not cards %}
+<div class="empty-state">
+  <p>No clients yet.</p>
+  <a href="{{ url_for('clients_add') }}" class="btn btn-primary">Add your first client</a>
+</div>
+{% endif %}
+
+<div class="card-grid">
+  {% for card in cards %}
+  <div class="client-card {% if card.error %}card-error{% endif %}">
+
+    <!-- Card header -->
+    <div class="card-header">
+      <span class="status-dot dot-{{ card.status }}" title="Status: {{ card.status }}"></span>
+      <h2 class="client-name">{{ card.name }}</h2>
+      <span class="plan-badge">${{ card.plan_usd }}/mo</span>
+    </div>
+
+    {% if card.error %}
+    <!-- Error state -->
+    <div class="error-block">
+      <span class="error-icon">&#9888;</span>
+      <span>{{ card.error }}</span>
+    </div>
+
+    {% else %}
+    <!-- Weight row -->
+    <div class="metric-row">
+      <div class="metric-label">Latest weight</div>
+      <div class="metric-value">
+        {% if card.latest_weight is not none %}
+          {{ '%.1f' | format(card.latest_weight) }} {{ card.weight_unit }}
+          {% if card.weight_delta is not none %}
+            {% if card.weight_delta > 0 %}
+              <span class="delta delta-up">&#9650; {{ '%.1f' | format(card.weight_delta) }}</span>
+            {% elif card.weight_delta < 0 %}
+              <span class="delta delta-down">&#9660; {{ '%.1f' | format(card.weight_delta | abs) }}</span>
+            {% else %}
+              <span class="delta delta-flat">&#8212; 0.0</span>
+            {% endif %}
+          {% endif %}
+        {% else %}
+          <span class="no-data">No data</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 7-day sparkline -->
+    <div id="spark-{{ loop.index }}" class="sparkline"></div>
+
+    <!-- Last workout logged -->
+    <div class="metrics-grid">
+      <div class="metric-block">
+        <div class="metric-label">Last workout logged</div>
+        {% if card.last_logged %}
+          <div class="compliance-value
+            {% if card.last_logged.days_ago <= 2 %}compliance-ok
+            {% elif card.last_logged.days_ago >= 7 %}compliance-bad
+            {% else %}compliance-warn{% endif %}">
+            {% if card.last_logged.days_ago == 0 %}Today
+            {% elif card.last_logged.days_ago == 1 %}Yesterday
+            {% else %}{{ card.last_logged.days_ago }} days ago{% endif %}
+          </div>
+          <div class="metric-sub">{{ card.last_logged.date }}</div>
+        {% else %}
+          <span class="no-data">Never logged</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Footer: payment + link -->
+    <div class="card-footer">
+      <span class="badge {{ card.payment_class }}">{{ card.payment_display }}</span>
+      <a href="{{ url_for('client_detail', name=card.name) }}" class="detail-link">View Detail &#8594;</a>
+    </div>
+
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Sparkline scripts -->
+<script>
+(function () {
+  var layout = {
+    height: 80,
+    margin: { t: 2, b: 2, l: 2, r: 2 },
+    xaxis: { visible: false, fixedrange: true },
+    yaxis: { visible: false, fixedrange: true },
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    showlegend: false,
+  };
+  var config = { displayModeBar: false, staticPlot: true, responsive: true };
+
+  {% for card in cards %}
+  {% if not card.error and card.spark_x %}
+  Plotly.newPlot('spark-{{ loop.index }}', [{
+    x: {{ card.spark_x | tojson }},
+    y: {{ card.spark_y | tojson }},
+    type: 'scatter',
+    mode: 'lines',
+    line: { color: '#22c55e', width: 2 },
+    fill: 'tozeroy',
+    fillcolor: 'rgba(34,197,94,0.08)',
+  }], layout, config);
+  {% endif %}
+  {% endfor %}
+})();
+</script>
+{% endblock %}
