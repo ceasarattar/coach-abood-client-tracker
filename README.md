@@ -22,10 +22,13 @@ in the spreadsheet.
 
 ## Quick start (one-time setup)
 
-**Windows (the handoff target):** see the click-by-click, no-coding-required
-guide in [`docs/SETUP_WINDOWS.md`](docs/SETUP_WINDOWS.md). In short: install
-Python, download the project, drop in `credentials.json`, double-click
-`setup.bat`. It creates a **Desktop shortcut** — done.
+**Windows (the handoff target):** open [`START_HERE.txt`](START_HERE.txt) — it's
+the 3-step version (install Python → drop in `credentials.json` → double-click
+`setup.bat`). `setup.bat` is interactive: it installs everything, asks you to paste
+the master sheet ID (and optional one-click settings), and creates a **Desktop
+shortcut**. After launch, the in-app **Help & Setup** page (`/guide`) shows a live
+checklist of what's done. Full click-by-click also in
+[`docs/SETUP_WINDOWS.md`](docs/SETUP_WINDOWS.md) and [`HANDOFF.md`](HANDOFF.md).
 
 **macOS / Linux (development):**
 
@@ -120,7 +123,7 @@ The generator creates these in every client sheet. The dashboard reads them via
 |---|---|---|
 | `WeightDates` | `Weight!A2:A` | Date column |
 | `WeightValues` | `Weight!B2:B` | Body-weight column |
-| `WeightMA7` | `Weight!D2:D` | Running average (MA proxy) |
+| `WeightMA7` | `Weight!D2:D` | 7-day trailing average |
 | `WeeklyAvg` | `Weight!E2:E` | Weekly average |
 | `DailyTotal_Calories` | `Nutrition!B34` | Single cell — today's calorie total |
 
@@ -141,6 +144,7 @@ Daily-calorie history for the chart is read from `Weight!J` (dated by
 |---|---|
 | `GET /` | Client card grid (all clients) |
 | `GET /client/<name>` | Per-client detail (weight, calories, week-by-week workout log, payment) |
+| `GET /guide` | In-app **Help & Setup** page with a live readiness checklist |
 | `GET /reauth` | Re-run OAuth flow (expired token) |
 | `GET /health` | Returns `{"status":"ok"}` |
 

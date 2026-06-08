@@ -17,7 +17,13 @@
       <li>Credentials → Create Credentials → <strong>OAuth client ID → Desktop app</strong><br>Download JSON → save as <code>credentials.json</code> in the project folder</li>
       <li>Restart the server — a browser tab will open for Google sign-in</li>
     </ol>
-    <p class="metric-sub" style="margin-top:1.5rem">Full instructions are in <strong>README.md</strong> in the project folder.</p>
+    <p class="metric-sub" style="margin-top:1.5rem">
+      Prefer click-by-click? Open the <a href="{{ url_for('guide') }}"><strong>Help &amp; Setup guide</strong></a>
+      — it has a live checklist and step-by-step instructions. Full details are also in <strong>README.md</strong>.
+    </p>
+    <div style="margin-top:1.2rem">
+      <a href="{{ url_for('guide') }}" class="btn btn-primary">{{ icon('rocket', 16) }} Open the setup guide</a>
+    </div>
   </div>
 </div>
 {% endblock %}

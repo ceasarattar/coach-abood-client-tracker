@@ -5,6 +5,7 @@
 {% set ep = request.endpoint or 'index' %}
 {% if ep in ('library', 'library_new', 'library_edit') %}{% set nav = 'library' %}
 {% elif ep in ('clients_add', 'clients_new') %}{% set nav = 'add' %}
+{% elif ep == 'guide' %}{% set nav = 'guide' %}
 {% else %}{% set nav = 'clients' %}{% endif %}
 <head>
   <meta charset="UTF-8" />
@@ -36,6 +37,9 @@
       </a>
       <a href="{{ url_for('clients_add') }}" class="nav-item {{ 'active' if nav == 'add' }}">
         {{ icon('userplus', 18) }} Add client
+      </a>
+      <a href="{{ url_for('guide') }}" class="nav-item {{ 'active' if nav == 'guide' }}">
+        {{ icon('help', 18) }} Help &amp; Setup
       </a>
       <div class="nav-spacer"></div>
       <div class="nav-foot"><span class="dot-live"></span> 127.0.0.1:5000 · Sheets sync</div>

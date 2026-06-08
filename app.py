@@ -16,7 +16,7 @@ from googleapiclient.errors import HttpError
 import sheets_client as sc
 import db
 import secrets_store
-import cronometer_client
+import cronometer_api
 import nutrition_sync
 
 # ---------------------------------------------------------------------------
@@ -419,7 +419,9 @@ def build_detail(client: dict, data: dict, payment_rows: list,
          if d is not None and v is not None],
         key=lambda x: x[0],
     )
-    weight_table = [(str(d), round(v, 1)) for d, v in all_weight[-14:]]
+    # Human-facing table → day-first dd/mm/yyyy (chart arrays below stay ISO so
+    # Plotly treats them as real dates).
+    weight_table = [(d.strftime('%d/%m/%Y'), round(v, 1)) for d, v in all_weight[-14:]]
 
     return {
         'name': client['name'],
@@ -533,6 +535,52 @@ def reauth():
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok'})
+
+
+# ---------------------------------------------------------------------------
+# In-app setup guide — /guide  (live "what's done / what's left" checklist)
+# ---------------------------------------------------------------------------
+
+def _setup_status() -> dict:
+    """Snapshot of setup readiness, shown on the /guide page. No network calls."""
+    env = load_env()
+    master = env.get('MASTER_SHEET_ID',
+                     os.environ.get('MASTER_SHEET_ID', '')).strip()
+    webapp_url, webapp_secret = _webapp_config()
+    creds_ok = os.path.exists(sc.CREDS_PATH)
+    token_ok = os.path.exists(sc.TOKEN_PATH)
+
+    # Best-effort token expiry read (no network): the stored JSON has 'expiry'.
+    token_state = 'missing'
+    if token_ok:
+        token_state = 'present'
+        try:
+            with open(sc.TOKEN_PATH) as fh:
+                tok = json.load(fh)
+            exp = tok.get('expiry', '')
+            if exp:
+                # stored as e.g. 2026-06-08T12:00:00Z or with microseconds
+                exp_dt = datetime.strptime(exp.replace('Z', '')[:19],
+                                           '%Y-%m-%dT%H:%M:%S')
+                token_state = 'expired' if exp_dt < datetime.utcnow() else 'valid'
+        except Exception:  # noqa: BLE001 — presence already recorded
+            pass
+
+    return {
+        'credentials': creds_ok,
+        'token': token_ok,
+        'token_state': token_state,
+        'master': bool(master),
+        'master_tail': ('…' + master[-6:]) if master else '',
+        'webapp': bool(webapp_url and webapp_secret),
+        'client_count': len(_load_clients()),
+        'ready': creds_ok and bool(master),
+    }
+
+
+@app.route('/guide')
+def guide():
+    return render_template('guide.html', status=_setup_status())
 
 
 # ---------------------------------------------------------------------------
@@ -1019,7 +1067,7 @@ def client_cronometer(name):
                 return redirect(url_for('reauth'))
             try:
                 days = _to_number(request.form.get('days'), 14) or 14
-                rows = cronometer_client.fetch_daily_nutrition(
+                rows = cronometer_api.fetch_daily_nutrition(
                     creds['email'], creds['password'], days=int(days))
                 result = nutrition_sync.sync_to_sheet(
                     service, client['spreadsheet_id'], rows)
