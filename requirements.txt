@@ -6,5 +6,9 @@ google-api-python-client>=2.0
 PyYAML>=6.0
 
 # Cronometer sync
-cryptography>=42.0        # encrypts stored client Cronometer logins
-playwright>=1.40          # drives Cronometer's CSV export (needs: playwright install chromium)
+cryptography>=42.0        # encrypts stored client Cronometer logins (required)
+
+# OPTIONAL — only for the legacy browser fallback in cronometer_client.py.
+# The default sync path (cronometer_api.py) is pure stdlib and needs none of this.
+# To enable the fallback:  pip install "playwright>=1.40"  &&  python -m playwright install chromium
+# playwright>=1.40

@@ -37,14 +37,15 @@ source venv/bin/activate
 
 # 3. Dependencies ------------------------------------------------------------
 echo "[3/7] Installing dependencies from requirements.txt ..."
-# (after pip install below, also fetch the Cronometer browser — best effort)
 pip install --upgrade pip >/dev/null
 pip install -r requirements.txt
-python -m playwright install chromium || echo "  (Playwright browser install skipped — run 'python -m playwright install chromium' later if you use Cronometer sync.)"
+# Cronometer sync uses the pure-stdlib API path (cronometer_api.py) — no browser
+# needed. The legacy Playwright fallback is optional; install it only if you want
+# it: pip install "playwright>=1.40" && python -m playwright install chromium
 
 # 4 & 5. .env (interactive) --------------------------------------------------
 if [ -f ".env" ]; then
-  echo "[4/7] .env already exists — leaving it untouched."
+  echo "[4/7] .env already exists — leaving it untouched (delete it to reconfigure)."
 else
   echo "[4/7] Configuring .env ..."
   echo ""
@@ -57,20 +58,27 @@ else
   done
 
   echo ""
-  echo "  You also need credentials.json (OAuth Desktop app) from Google Cloud"
-  echo "  Console, placed in this folder. See README.md for the click-by-click."
-  read -r -p "  Is credentials.json in this folder now? [y/N]: " HAS_CREDS
-  if [ ! -f "credentials.json" ]; then
-    echo "  NOTE: credentials.json not found yet — add it before first launch."
+  echo "  OPTIONAL one-click client generation (Enter to skip; see the in-app"
+  echo "  Help & Setup page, Step 4):"
+  read -r -p "  Generator web app URL (ends in /exec): " WEBHOOK_URL
+  WEBHOOK_SECRET=""
+  if [ -n "${WEBHOOK_URL// }" ]; then
+    read -r -p "  Generator secret (same as in the script): " WEBHOOK_SECRET
   fi
 
-  printf '# Coach Abood Dashboard — local secrets (gitignored). Do not commit.\nMASTER_SHEET_ID=%s\n' "$MASTER_ID" > .env
+  if [ ! -f "credentials.json" ]; then
+    echo "  NOTE: credentials.json not found yet — get it from Ceasar and add it"
+    echo "        to this folder before first launch."
+  fi
+
+  printf '# Coach Abood Dashboard — local secrets (gitignored). Do not commit.\nMASTER_SHEET_ID=%s\nTEMPLATE_WEBAPP_URL=%s\nTEMPLATE_WEBAPP_SECRET=%s\n' \
+    "$MASTER_ID" "$WEBHOOK_URL" "$WEBHOOK_SECRET" > .env
   echo "[5/7] Wrote .env"
 fi
 
 # 6. .gitignore safety -------------------------------------------------------
 echo "[6/7] Ensuring secrets are gitignored ..."
-for entry in ".env" "coach_data.db" "credentials.json" "token.json"; do
+for entry in ".env" "coach_data.db" "credentials.json" "token.json" "cronometer.key" "cronometer_creds.enc"; do
   if [ -f .gitignore ] && grep -qx "$entry" .gitignore; then :; else
     echo "$entry" >> .gitignore
   fi

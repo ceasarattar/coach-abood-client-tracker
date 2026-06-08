@@ -1,5 +1,10 @@
 /************************************************************************
- * COACH ABOOD LLC — CLIENT TEMPLATE GENERATOR  (v7)
+ * COACH ABOOD LLC — CLIENT TEMPLATE GENERATOR  (v8)
+ *
+ * v8 fixes the Weight tab: the new sheet is created with a day-first (en_GB)
+ * locale and the "Week #" / averages formulas no longer use DATEVALUE (which
+ * mis-parsed dd/MM/yyyy under a US locale and produced wrong weeks then #VALUE!).
+ * Dates render dd/MM/yyyy everywhere (Weight, Nutrition, Week-tab Date columns).
  *
  * v7 adds a WEB APP entry point so the Flask dashboard can generate a client
  * file automatically (fill master tabs -> POST here -> get the new sheet URL
@@ -173,6 +178,11 @@ function generateFromConfig_(cfg) {
   const fname = cfg.name + ' — Coach Abood LLC';
   const dest  = SpreadsheetApp.create(fname);
 
+  // Day-first locale so dd/MM/yyyy is native everywhere — typed dates, DATEVALUE,
+  // and TEXT all read day-first, matching the dashboard's convention. Without
+  // this the sheet defaults to US (month-first) and date math goes wrong.
+  dest.setSpreadsheetLocale('en_GB');
+
   buildWeightTab(dest, cfg);
   cfg.weeks.forEach(w => buildWeekTab(dest, cfg, w.week, w.rir));
   buildNutritionTab(dest, cfg);
@@ -219,23 +229,30 @@ function buildWeightTab(dest, cfg) {
 
   sh.getRange(1, 1, 1, lastCol)
     .setValues([[
-      'Date', 'Weight (' + cfg.unit + ')', 'Day Δ', 'Running Avg', 'Weekly Avg',
+      'Date', 'Weight (' + cfg.unit + ')', 'Day Δ', '7-Day Avg', 'Weekly Avg',
       'Week #', 'Notes', 'Steps', 'Total Steps', 'Calories', 'Total Calories'
     ]])
     .setFontWeight('bold').setFontColor(WHITE)
     .setBackground(NAVY).setHorizontalAlignment('center');
 
+  const last = n + 1;  // last data row (rows 2..141 for n=140)
+
+  // Day Δ — today minus yesterday; blank on the first row or any gap.
   sh.getRange('C1').setFormula(
-    '={"Day Δ"; ARRAYFORMULA(IF(B2:B="","",IF(B1:B1000="","",IFERROR(B2:B1001-B1:B1000,""))))}'
+    '={"Day Δ"; ""; ARRAYFORMULA(IF((B3:B' + last + '="")+(B2:B' + (last-1) + '=""),"",B3:B' + last + '-B2:B' + (last-1) + '))}'
   );
+  // 7-Day Avg — trailing 7-day average of logged weights (named range WeightMA7).
+  // BYROW + AVERAGEIFS over the date window; robust and ignores blank days.
   sh.getRange('D1').setFormula(
-    '={"Running Avg"; ARRAYFORMULA(IF(B2:B' + (n+1) + '="","",IFERROR(MMULT(--(ROW(B2:B' + (n+1) + ')>=TRANSPOSE(ROW(B2:B' + (n+1) + ')))*--(B2:B' + (n+1) + '<>""),IF(B2:B' + (n+1) + '<>"",VALUE(B2:B' + (n+1) + '),0))/MMULT(--(ROW(B2:B' + (n+1) + ')>=TRANSPOSE(ROW(B2:B' + (n+1) + ')))*--(B2:B' + (n+1) + '<>""),--ISNUMBER(VALUE(B2:B' + (n+1) + '))),""))}'
+    '={"7-Day Avg"; BYROW(SEQUENCE(' + n + ',1,2),LAMBDA(r,IF(INDEX(B:B,r)="","",IFERROR(AVERAGEIFS(B$2:B$' + last + ',A$2:A$' + last + ',">="&INDEX(A:A,r)-6,A$2:A$' + last + ',"<="&INDEX(A:A,r)),""))))}'
   );
   sh.getRange('E1').setFormula(
-    '={"Weekly Avg"; BYROW(F2:F' + (n+1) + ',LAMBDA(f,IF(f="","",IFERROR(AVERAGEIF(F$2:F$' + (n+1) + ',f,B$2:B$' + (n+1) + '),""))))}'
+    '={"Weekly Avg"; BYROW(F2:F' + last + ',LAMBDA(f,IF(f="","",IFERROR(AVERAGEIF(F$2:F$' + last + ',f,B$2:B$' + last + '),""))))}'
   );
+  // Week # — column A holds real dates, so subtract directly. (DATEVALUE was the
+  // old bug: it re-parsed the dd/MM/yyyy text under a US locale -> wrong weeks.)
   sh.getRange('F1').setFormula(
-    '={"Week #"; ARRAYFORMULA(IF(A2:A' + (n+1) + '="","",INT((DATEVALUE(A2:A' + (n+1) + ')-DATEVALUE(A$2))/7)+1))}'
+    '={"Week #"; ARRAYFORMULA(IF(A2:A' + last + '="","",INT((A2:A' + last + '-A$2)/7)+1))}'
   );
 
   const start    = cfg.start;
@@ -340,6 +357,7 @@ function buildWeekTab(dest, cfg, week, rir) {
     sh.getRange(dataStart, 5, numEx, 1).setFontColor(MUTED).setWrap(true);
     sh.getRange(dataStart, 6, numEx, 1).setHorizontalAlignment('center');
     sh.getRange(dataStart, 7, numEx, 4).setBackground(INPUT).setHorizontalAlignment('center');
+    sh.getRange(dataStart, 7, numEx, 1).setNumberFormat('dd/MM/yyyy');  // Date col
     sh.getRange(dataStart, 11, numEx, 1).setWrap(true);
 
     exs.forEach((e, i) => {
@@ -374,7 +392,7 @@ function buildNutritionTab(dest, cfg) {
     .setFontColor(WHITE).setBackground(NAVY).setHorizontalAlignment('center');
 
   sh.getRange('A2').setValue('Date:').setFontWeight('bold').setHorizontalAlignment('right');
-  sh.getRange('B2').setBackground(INPUT);
+  sh.getRange('B2').setBackground(INPUT).setNumberFormat('dd/MM/yyyy');
 
   sh.getRange(3, 1, 1, 7)
     .setValues([['Food', 'Calories', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Fiber (g)', 'Amount']])

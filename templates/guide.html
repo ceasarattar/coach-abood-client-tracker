@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% from '_icons.html' import icon %}
+{% block title %}Help &amp; Setup · Coach Abood{% endblock %}
+{% block crumbs %}<span class="here">Help &amp; Setup</span>{% endblock %}
+
+{% macro statrow(ok, label, done_text, todo_text, warn=false) %}
+<div class="g-row">
+  <span class="badge {{ 'badge-green' if ok else ('badge-yellow' if warn else 'badge-red') }}">
+    {{ icon('check' if ok else 'warn', 14) }} {{ 'Done' if ok else ('Check' if warn else 'To do') }}
+  </span>
+  <div>
+    <div class="g-row-label">{{ label }}</div>
+    <div class="metric-sub">{{ done_text if ok else todo_text }}</div>
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<style>
+  .g-wrap { max-width: 880px; }
+  .g-row { display: flex; gap: 0.9rem; align-items: flex-start; padding: 0.7rem 0;
+           border-bottom: 1px solid var(--border-soft); }
+  .g-row:last-child { border-bottom: none; }
+  .g-row .badge { flex-shrink: 0; min-width: 74px; justify-content: center; }
+  .g-row-label { font-weight: 600; color: var(--text); }
+  .g-steps details { border: 1px solid var(--border); border-radius: 10px;
+                     margin-bottom: 0.7rem; background: var(--surface-2); overflow: hidden; }
+  .g-steps summary { cursor: pointer; padding: 0.85rem 1rem; font-weight: 650;
+                     display: flex; align-items: center; gap: 0.55rem; list-style: none; }
+  .g-steps summary::-webkit-details-marker { display: none; }
+  .g-steps summary .num { width: 22px; height: 22px; border-radius: 50%; flex-shrink:0;
+                          background: var(--accent); color: var(--accent-ink);
+                          font-size: 0.75rem; font-weight: 700; display: grid; place-items: center; }
+  .g-steps .body { padding: 0 1.1rem 1rem 1.1rem; color: var(--text-2); }
+  .g-steps .body ol, .g-steps .body ul { margin: 0.3rem 0 0.3rem 1.1rem; }
+  .g-steps .body li { margin: 0.35rem 0; }
+  .g-steps .body code { background: var(--surface-3); padding: 0.1rem 0.35rem;
+                        border-radius: 5px; font-family: var(--mono); font-size: 0.82rem; }
+  .g-cta { display:flex; gap:0.6rem; flex-wrap:wrap; margin-top: 0.4rem; }
+</style>
+
+<div class="g-wrap">
+  <h1 class="page-title" style="margin-bottom:0.4rem">{{ icon('rocket', 24) }} Get set up</h1>
+  <p style="color:var(--text-2);margin-bottom:1.4rem">
+    Everything Coach Abood needs, in order. The checklist below updates itself —
+    green means it's done. Click any step for click-by-click instructions.
+  </p>
+
+  {# ── Live status ─────────────────────────────────────────────────────── #}
+  <div class="panel" style="margin-bottom:1.4rem">
+    <div class="panel-title">{{ icon('layers', 18) }} Setup status</div>
+    {{ statrow(status.credentials,
+               'Google connection file (credentials.json)',
+               'Found in the project folder.',
+               'Missing — get it from Ceasar and drop it in the project folder (Step 1).') }}
+    {{ statrow(status.master,
+               'Master spreadsheet linked',
+               'MASTER_SHEET_ID is set (' ~ status.master_tail ~ ').',
+               'Not set — paste the master sheet ID during setup (Step 2).') }}
+    {{ statrow(status.token,
+               'Signed in to Google',
+               ('Signed in — token is ' ~ status.token_state ~ '.') if status.token_state != 'expired'
+                 else 'Signed in earlier, but the login expired.',
+               'Not signed in yet — launching the app opens a Google sign-in tab (Step 3).',
+               warn=(status.token_state == 'expired')) }}
+    {{ statrow(status.webapp,
+               'One-click client generation (optional)',
+               'Generator web app is configured.',
+               'Optional — set it up to make the New-Client wizard one click (Step 4).',
+               warn=true) }}
+    {% if status.token_state == 'expired' %}
+    <div class="g-cta"><a href="{{ url_for('reauth') }}" class="btn btn-primary">{{ icon('check',16) }} Re-sign in to Google</a></div>
+    {% endif %}
+    {% if status.ready %}
+    <p class="metric-sub" style="margin-top:0.9rem;color:var(--green)">
+      {{ icon('check',14) }} Core setup looks complete — you have {{ status.client_count }} client(s) registered.
+    </p>
+    {% endif %}
+  </div>
+
+  {# ── Step-by-step ────────────────────────────────────────────────────── #}
+  <div class="g-steps">
+    <details {{ 'open' if not status.credentials }}>
+      <summary><span class="num">1</span> {{ icon('download',16) }} Add the Google connection file</summary>
+      <div class="body">
+        <p>The app talks to Google Sheets through a small key file called
+        <code>credentials.json</code>. It's a secret, so it is <strong>not</strong>
+        included in the download.</p>
+        <ol>
+          <li>Ceasar sends you <code>credentials.json</code> separately (email/USB/drive).</li>
+          <li>Save it, then move it <strong>into the project folder</strong> — the same
+            folder that contains <code>setup.bat</code> and <code>app.py</code>.</li>
+          <li>That's it. Don't rename it.</li>
+        </ol>
+        <p class="metric-sub">Advanced (Ceasar): it's an OAuth <em>Desktop app</em> client
+        from Google Cloud Console → APIs &amp; Services → Credentials, with the
+        Google Sheets API enabled.</p>
+      </div>
+    </details>
+
+    <details {{ 'open' if status.credentials and not status.master }}>
+      <summary><span class="num">2</span> {{ icon('sheet',16) }} Run setup &amp; link the master sheet</summary>
+      <div class="body">
+        <ol>
+          <li>In the project folder, double-click <code>setup.bat</code>.
+            (If Windows shows a blue warning: <em>More info → Run anyway</em>.)</li>
+          <li>It installs everything automatically. When it asks, paste your
+            <strong>master spreadsheet ID</strong> and press Enter.</li>
+          <li>The ID is the long code in the master sheet's web address:<br>
+            <code>docs.google.com/spreadsheets/d/</code><strong>THIS-LONG-CODE</strong><code>/edit</code></li>
+          <li>It finishes by making a <strong>Coach Dashboard</strong> shortcut on your Desktop.</li>
+        </ol>
+      </div>
+    </details>
+
+    <details {{ 'open' if status.credentials and status.master and not status.token }}>
+      <summary><span class="num">3</span> {{ icon('check',16) }} Launch &amp; sign in to Google</summary>
+      <div class="body">
+        <ol>
+          <li>Double-click the <strong>Coach Dashboard</strong> icon on your Desktop.</li>
+          <li>Your browser opens the dashboard, and a Google sign-in tab appears.</li>
+          <li>Sign in with the <strong>Google account that owns the spreadsheets</strong>
+            and click <strong>Allow</strong>. (If it says "unverified," click
+            <em>Advanced → Go to… → Allow</em> — it's your own app.)</li>
+        </ol>
+        <p class="metric-sub">Logins can expire ~weekly while the Google project is in
+        "Testing." If that happens, just use the <strong>Re-sign in</strong> button above.
+        Ceasar can "Publish" the project to make it permanent.</p>
+      </div>
+    </details>
+
+    <details {{ 'open' if status.ready and not status.webapp }}>
+      <summary><span class="num">4</span> {{ icon('sparkles',16) }} One-click new clients (optional)</summary>
+      <div class="body">
+        <p>Without this, the New-Client wizard still works — it just asks you to click
+        <em>Coach Tools → Generate Client Template</em> in the master sheet and paste
+        the new sheet link back. With it, the whole thing is one click.</p>
+        <ol>
+          <li>Open the master sheet → <strong>Extensions → Apps Script</strong>.</li>
+          <li>Paste the contents of <code>apps_script/Code.gs</code> from the project.</li>
+          <li>Set <code>WEBAPP_SECRET</code> to a long random string. <strong>Deploy →
+            New deployment → Web app</strong> (Execute as: Me, Access: Anyone). Copy the
+            <code>/exec</code> URL.</li>
+          <li>Put the URL + the same secret into the project's <code>.env</code> as
+            <code>TEMPLATE_WEBAPP_URL</code> and <code>TEMPLATE_WEBAPP_SECRET</code>
+            (the setup script can do this for you), then restart the app.</li>
+        </ol>
+        <div class="g-cta"><a href="{{ url_for('clients_new') }}" class="btn">Open the New-Client wizard</a></div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="num">5</span> {{ icon('flame',16) }} Cronometer nutrition sync (optional)</summary>
+      <div class="body">
+        <ol>
+          <li>Open a client → <strong>Cronometer</strong> → enter their Cronometer
+            email + password → <strong>Save credentials</strong> (stored encrypted on
+            this PC only — never in Google or GitHub).</li>
+          <li>Click <strong>Sync nutrition</strong>. Their daily calories flow into the
+            Weight tab and the calorie chart.</li>
+        </ol>
+        <p class="metric-sub">If a client's Cronometer has 2-factor auth on, sync can't
+        pass it — turn 2FA off for that account to use sync.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="num">6</span> {{ icon('users',16) }} Using it day to day</summary>
+      <div class="body">
+        <ul>
+          <li><strong>Open:</strong> double-click the Desktop shortcut. Already open? It
+            just reopens the browser — never a second copy.</li>
+          <li><strong>Close:</strong> close the small black window the shortcut opened.</li>
+          <li><strong>Client dots:</strong> 🟢 on track · 🟡 needs a look · 🔴 overdue / not logging / payment late.</li>
+          <li><strong>Add a client you already have a sheet for:</strong> Add client → paste their sheet link.</li>
+          <li><strong>Brand-new client:</strong> Add client → Start guided setup.</li>
+          <li><strong>Log weight / payment:</strong> open a client → Log entry (dates are dd/mm/yyyy).</li>
+          <li><strong>Something looks off?</strong> send Ceasar <code>logs\dashboard.log</code> from the project folder.</li>
+        </ul>
+      </div>
+    </details>
+  </div>
+</div>
+{% endblock %}

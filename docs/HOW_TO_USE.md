@@ -1,6 +1,11 @@
 # Coach Dashboard — How to Use
 
-A simple one-page guide. (For first-time install, see `SETUP_WINDOWS.md`.)
+A simple one-page guide.
+
+## First-time setup (do this once before opening the app)
+1. Follow the full setup guide: **[SETUP_WINDOWS.md](SETUP_WINDOWS.md)**
+2. That setup installs Python, adds `credentials.json`, runs `setup.bat`, and creates the Desktop shortcut.
+3. After setup is complete, come back here for day-to-day use.
 
 ---
 

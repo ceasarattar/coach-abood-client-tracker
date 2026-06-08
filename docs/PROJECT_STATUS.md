@@ -1,7 +1,21 @@
 # Project Status & Continuation Guide
 
 Living handoff doc. Read this first when resuming work (e.g. from another
-machine / a fresh Claude Code session). Last updated: 2026-06-07.
+machine / a fresh Claude Code session). Last updated: 2026-06-08.
+
+> **2026-06-08 polish pass (all verified):**
+> - **Weight tab fixed** — `apps_script/Code.gs` v8: `Week #` no longer uses
+>   `DATEVALUE` (the dd/MM/yyyy-under-US-locale bug → wrong weeks then `#VALUE!`),
+>   sheet is created `en_GB` (day-first), `Running Avg` `MMULT` replaced with a
+>   robust 7-day `BYROW` average, dates `dd/MM/yyyy` on Weight/Nutrition/Week tabs.
+>   Proven on a live Sheet (correct weeks, no errors). **Must re-deploy the script
+>   in the master sheet for new client sheets to pick it up — see HANDOFF.md.**
+> - **Cronometer rebuilt** — new `cronometer_api.py` uses Cronometer's own HTTP +
+>   GWT-RPC + CSV export (no browser, nothing to bot-detect), self-heals the
+>   `AuthScope` id from the live JS. Tested end-to-end on a real account. Playwright
+>   is now **optional** (legacy fallback only).
+> - **Onboarding** — `START_HERE.txt`, interactive `setup.bat`, and an in-app
+>   **Help & Setup** page (`/guide`) with a live status checklist. See `HANDOFF.md`.
 
 ---
 

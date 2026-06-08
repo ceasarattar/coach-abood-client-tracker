@@ -4,12 +4,39 @@ Pulls a client's daily calories from Cronometer into their Weight tab (col J),
 which feeds the dashboard's calorie chart. Manual trigger — a button you press
 whenever you want (daily/weekly).
 
-## Why it works this way
+## How it works (the reliable way)
 
-Cronometer has **no public API** (confirmed — see the project notes). The most
-robust route is to drive Cronometer's own **CSV export** with a headless browser
-(Playwright) and parse the result, rather than scraping the live page DOM. The
-parser matches columns by name, so small export changes don't break it.
+Cronometer has **no public API**, but its own website talks to the backend over a
+small, stable set of HTTP calls. `cronometer_api.py` makes the **same calls the
+website makes** — no browser, so there is nothing for bot-detection to flag:
+
+1. `GET /login/` → read the `anticsrf` token from the page.
+2. `POST /login` with `anticsrf` + email + password → establishes the session
+   (`sesnonce` cookie).
+3. GWT-RPC `authenticate` → the numeric user id.
+4. GWT-RPC `generateAuthorizationToken` → a short-lived export token.
+5. `GET /export?nonce=<token>&generate=dailySummary&start=..&end=..` → CSV.
+
+The CSV is parsed by `parse_daily_nutrition_csv` (in `cronometer_client.py`,
+already unit-tested), which matches columns by name (`Date`, `Energy (kcal)`, …)
+so minor export changes don't break it. Only matching dates already present in the
+Weight tab are written; other dates are skipped.
+
+### Self-healing
+
+The one brittle part is GWT's serialization ids, which change when Cronometer
+ships a new build. They're pinned in the `CONFIG` block of `cronometer_api.py`
+**and** auto-recovered: if the token step fails, the client re-reads the current
+`AuthScope` id out of Cronometer's compiled JS and retries once. If a future
+Cronometer change breaks login or `authenticate` outright, the sync surfaces a
+clear message — update the pinned constants in `cronometer_api.py`.
+
+### Old browser path (fallback only)
+
+`cronometer_client.fetch_daily_nutrition` (Playwright) is kept as a manual
+fallback and as the home of the tested CSV parser. It is **not** used by the app
+anymore — the direct API above replaced it because the GWT diary UI was
+unreliable to scrape and looked bot-like.
 
 ## How credentials are handled
 
@@ -21,37 +48,29 @@ database, the dashboard config, or GitHub.
 > This is encryption at rest, not a vault. Anyone with access to the unlocked
 > Windows account can use the app. Treat the machine accordingly.
 
-## Setup
+## Setup / use
 
-1. Ensure the browser is installed (the setup script does this; or run it once):
-   ```
-   python -m playwright install chromium
-   ```
-2. In the app: open a client → **Cronometer** → enter their Cronometer email +
+1. In the app: open a client → **Cronometer** → enter their Cronometer email +
    password → **Save credentials**.
-3. Click **Sync nutrition**. Calories for matching dates are written to the
+2. Click **Sync nutrition**. Calories for matching dates are written to the
    Weight tab; dates with no existing row are skipped.
 
-## ⚠️ One validation step (important)
+> 2-factor authentication: if a client's Cronometer account has 2FA enabled the
+> automated sync can't pass it — the app says so. Turn off 2FA for that account
+> to use sync.
 
-The browser login/export steps in `cronometer_client.py` are **best-effort and
-need one real-account test** — Cronometer's UI changes over time. Everything
-breakable lives in the `CONFIG` block at the top of that file (URLs + selectors)
-and in `_trigger_daily_export()`. To validate:
+### Validate from the command line
 
-```python
-# from the project folder, with a real test account:
-python -c "import cronometer_client as c; \
-import json; print(json.dumps(c.fetch_daily_nutrition('EMAIL','PASSWORD',days=7,headless=False), indent=2))"
+```
+python cronometer_api.py "Client Name"   # uses the saved encrypted login
 ```
 
-`headless=False` opens a visible browser so you can see exactly where it stops,
-then adjust the selectors in the CONFIG block. The CSV parser itself is already
-unit-tested and correct.
+Prints how many days parsed and the last few dates + calories. No browser needed.
 
 ## Files
 
+- `cronometer_api.py` — direct HTTP/GWT-RPC fetch (**primary**, no browser).
+- `cronometer_client.py` — `parse_daily_nutrition_csv` (tested) + Playwright fallback.
 - `secrets_store.py` — encrypted credential storage (tested).
-- `cronometer_client.py` — Playwright login + CSV export + `parse_daily_nutrition_csv` (parser tested; browser steps need validation).
 - `nutrition_sync.py` — writes calories into `Weight!J` by date (tested logic).
 - Route `/client/<name>/cronometer` + `templates/client_cronometer.html`.
