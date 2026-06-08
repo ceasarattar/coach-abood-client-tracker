@@ -1,39 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
+{% from '_icons.html' import icon %}
+{# active nav group derived from the current endpoint #}
+{% set ep = request.endpoint or 'index' %}
+{% if ep in ('library', 'library_new', 'library_edit') %}{% set nav = 'library' %}
+{% elif ep in ('clients_add', 'clients_new') %}{% set nav = 'add' %}
+{% else %}{% set nav = 'clients' %}{% endif %}
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}Coach Dashboard{% endblock %}</title>
+  <title>{% block title %}Coach Abood · Control Panel{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;550;600;650;700;750;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
 </head>
 <body>
-  <nav class="navbar">
-    <a href="{{ url_for('index') }}" class="nav-brand">
-      <span class="nav-logo">&#9651;</span> Coach Dashboard
-    </a>
-    <div class="nav-links">
-      <a href="{{ url_for('index') }}">Clients</a>
-      <a href="{{ url_for('library') }}">Library</a>
-      <a href="{{ url_for('clients_add') }}" class="nav-cta">+ Add Client</a>
-    </div>
-  </nav>
-
-  <main class="container">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-stack">
-          {% for category, msg in messages %}
-            <div class="flash flash-{{ category }}">{{ msg }}</div>
-          {% endfor %}
+  <div class="app">
+    <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <a href="{{ url_for('index') }}" class="brand">
+        <div class="brand-mark">CA</div>
+        <div>
+          <div class="brand-name">Coach Abood</div>
+          <div class="brand-sub">control panel</div>
         </div>
-      {% endif %}
-    {% endwith %}
-    {% block content %}{% endblock %}
-  </main>
+      </a>
+      <div class="nav-group-label">Manage</div>
+      <a href="{{ url_for('index') }}" class="nav-item {{ 'active' if nav == 'clients' }}">
+        {{ icon('users', 18) }} Clients
+      </a>
+      <a href="{{ url_for('library') }}" class="nav-item {{ 'active' if nav == 'library' }}">
+        {{ icon('dumbbell', 18) }} Workout Library
+      </a>
+      <a href="{{ url_for('clients_add') }}" class="nav-item {{ 'active' if nav == 'add' }}">
+        {{ icon('userplus', 18) }} Add client
+      </a>
+      <div class="nav-spacer"></div>
+      <div class="nav-foot"><span class="dot-live"></span> 127.0.0.1:5000 · Sheets sync</div>
+    </aside>
 
-  <footer class="footer">
-    Local-only &mdash; runs on 127.0.0.1:5000 &mdash; Google Sheets (read + write)
-  </footer>
+    <!-- ── Main ────────────────────────────────────────────────────────── -->
+    <div class="main">
+      <div class="topbar">
+        <div class="crumbs">{% block crumbs %}<span class="here">Clients</span>{% endblock %}</div>
+      </div>
+      <div class="content">
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Flash messages → toasts ───────────────────────────────────────── -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="toast-wrap" id="toast-wrap">
+      {% for category, msg in messages %}
+      {% set kind = 'err' if category in ('error', 'err') else 'ok' %}
+      <div class="toast {{ kind }}">
+        <span class="bar"></span>
+        {{ icon('check' if kind == 'ok' else 'warn', 16) }}
+        <span>{{ msg }}</span>
+        <button type="button" class="toast-x" onclick="this.parentElement.remove()" aria-label="Dismiss">&times;</button>
+      </div>
+      {% endfor %}
+    </div>
+    <script>
+      setTimeout(function () {
+        var w = document.getElementById('toast-wrap');
+        if (w) w.querySelectorAll('.toast').forEach(function (t) {
+          t.style.transition = 'opacity .3s'; t.style.opacity = '0';
+          setTimeout(function () { t.remove(); }, 320);
+        });
+      }, 4200);
+    </script>
+    {% endif %}
+  {% endwith %}
+
+  {% block scripts %}{% endblock %}
 </body>
 </html>

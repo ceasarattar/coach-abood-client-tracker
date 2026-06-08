@@ -1,215 +1,208 @@
 {% extends 'base.html' %}
-{% block title %}{{ d.name }} — Coach Dashboard{% endblock %}
+{% from '_icons.html' import icon %}
+{% block title %}{{ d.name }} · Coach Abood{% endblock %}
+{% block crumbs %}
+  <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span><span class="here">{{ d.name }}</span>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<span class="back-link" onclick="location.href='{{ url_for('index') }}'">{{ icon('arrowleft', 14) }} All clients</span>
+
+<div class="page-head">
   <div>
-    <a href="{{ url_for('index') }}" class="back-link">&#8592; All Clients</a>
-    <h1 class="page-title">
-      <span class="status-dot dot-{{ d.status }}" title="Status: {{ d.status }}"></span>
-      {{ d.name }}
-    </h1>
-    <p class="page-sub">${{ d.plan_usd }}/mo &mdash; Payment: <span class="badge {{ d.payment_class }}">{{ d.payment_display }}</span></p>
-  {% if not d.error %}
-  <p class="page-sub">
-    Last workout logged:
-    {% if d.last_logged %}
-      <strong>{{ d.last_logged.date }}</strong>
-      ({% if d.last_logged.days_ago == 0 %}today{% elif d.last_logged.days_ago == 1 %}yesterday{% else %}{{ d.last_logged.days_ago }} days ago{% endif %})
-    {% else %}<span class="no-data">never</span>{% endif %}
-  </p>
-  {% endif %}
+    <h1 class="page-title"><span class="status-dot dot-{{ d.status }}" title="Status: {{ d.status }}"></span> {{ d.name }}</h1>
+    <p class="page-sub">${{ d.plan_usd }}/mo · Payment <span class="badge {{ d.payment_class }}">{{ d.payment_display }}</span></p>
   </div>
   <div class="header-actions">
-    <a href="{{ url_for('client_log', name=d.name) }}" class="btn btn-small">Log entry</a>
-    <a href="{{ url_for('client_cronometer', name=d.name) }}" class="btn btn-small">Cronometer</a>
+    <a href="{{ url_for('client_log', name=d.name) }}" class="btn">{{ icon('scale', 16) }} Log entry</a>
+    <a href="{{ url_for('client_cronometer', name=d.name) }}" class="btn">{{ icon('flame', 16) }} Cronometer</a>
   </div>
 </div>
 
 {% if d.error %}
-<div class="error-block error-block-lg">
-  <span class="error-icon">&#9888;</span>
-  <span>{{ d.error }}</span>
-</div>
-
+<div class="error-block error-block-lg">{{ icon('warn', 20, 'error-icon') }} <span>{{ d.error }}</span></div>
 {% else %}
 
-<!-- ── Weight Chart ─────────────────────────────────────────────────────── -->
-<section class="chart-section">
-  <h2 class="section-title">Weight — Last 30 Days</h2>
-  <div id="chart-weight" class="chart-container"></div>
-</section>
+{# ── derived stat values ─────────────────────────────────────────────── #}
+{% set latest = d.weight_table[-1] if d.weight_table else None %}
+{% set change30 = (d.weight_30d_values[-1] - d.weight_30d_values[0]) if (d.weight_30d_values and d.weight_30d_values | length >= 2) else None %}
+{% set avg_cal = ((d.cal_values | sum) / (d.cal_values | length)) if d.cal_values else None %}
 
-<!-- ── Workout Summary (week-by-week) ──────────────────────────────────── -->
-<section class="chart-section">
-  <h2 class="section-title">Workout Log — Sessions Completed by Week</h2>
-  {% if d.week_summary %}
-  <table class="data-table">
-    <thead>
-      <tr><th>Week</th><th>Sessions logged</th><th>Progress</th></tr>
-    </thead>
-    <tbody>
-      {% for w in d.week_summary %}
-      <tr>
-        <td>{{ w.week }}</td>
-        <td>{{ w.logged }} / {{ w.total }}</td>
-        <td>
-          <div class="progress-wrap">
-            <div class="progress-bar"
-                 style="width: {{ (100 * w.logged / w.total) if w.total else 0 }}%"></div>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="no-data">No week tabs found for this client.</p>
-  {% endif %}
-</section>
+<!-- ── Stat strip ──────────────────────────────────────────────────────── -->
+<div class="stat-strip" style="margin-bottom:var(--gap)">
+  <div class="panel stat">
+    <div class="stat-label">{{ icon('scale', 14) }} Latest weight</div>
+    <div class="stat-value">{% if latest %}{{ '%.1f' | format(latest[1]) }} {{ d.weight_unit }}{% else %}—{% endif %}</div>
+    <div class="stat-sub">{% if latest %}as of {{ latest[0] }}{% else %}no entries{% endif %}</div>
+  </div>
+  <div class="panel stat">
+    <div class="stat-label">{{ icon('trend', 14) }} 30-day change</div>
+    <div class="stat-value {{ 'tone-green' if (change30 is not none and change30 < 0) else ('tone-amber' if (change30 is not none and change30 > 0) else '') }}">
+      {% if change30 is not none %}{{ '+' if change30 > 0 }}{{ '%.1f' | format(change30) }} {{ d.weight_unit }}{% else %}—{% endif %}
+    </div>
+    <div class="stat-sub">vs 30 days ago</div>
+  </div>
+  <div class="panel stat">
+    {% set da = d.last_logged.days_ago if d.last_logged else None %}
+    <div class="stat-label">{{ icon('dumbbell', 14) }} Last workout</div>
+    <div class="stat-value {{ 'tone-green' if (da is not none and da <= 1) else ('tone-red' if (da is not none and da >= 7) else ('tone-amber' if (da is not none and da >= 5) else '')) }}" style="font-size:1.2rem">
+      {% if d.last_logged %}{% if da == 0 %}Logged today{% elif da == 1 %}Yesterday{% else %}{{ da }} days ago{% endif %}{% else %}Never{% endif %}
+    </div>
+    <div class="stat-sub">{{ d.last_logged.date if d.last_logged else '—' }}</div>
+  </div>
+  <div class="panel stat">
+    <div class="stat-label">{{ icon('flame', 14) }} Avg calories</div>
+    <div class="stat-value">{% if avg_cal is not none %}{{ '{:,}'.format(avg_cal | round | int) }}{% else %}—{% endif %}</div>
+    <div class="stat-sub">last 30 days</div>
+  </div>
+</div>
 
-<!-- ── Calorie Chart ──────────────────────────────────────────────────── -->
-<section class="chart-section">
-  <h2 class="section-title">Daily Calories — Last 30 Days</h2>
-  <div id="chart-calories" class="chart-container"></div>
-</section>
+<!-- ── Charts + side panels ────────────────────────────────────────────── -->
+<div class="detail-grid">
+  <div class="stack">
+    <div class="panel">
+      <div class="panel-title">Body weight · last 30 days</div>
+      <div id="chart-weight" class="chart-container"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Daily calories · last 30 days</div>
+      <div id="chart-calories" class="chart-container"></div>
+    </div>
+  </div>
 
-<!-- ── Tables ─────────────────────────────────────────────────────────── -->
-<div class="tables-grid">
+  <div class="stack">
+    <div class="panel">
+      <div class="panel-title">Payment <span class="badge {{ d.payment_class }}">{{ d.payment_display }}</span></div>
+      {% if d.payment_record %}
+      <table class="table">
+        <tbody>
+          {% for col in d.payment_columns %}
+          {% set val = d.payment_record[col] %}
+          {% if col not in ('Client Name', 'Status') and val not in (none, '') %}
+          <tr>
+            <th style="text-transform:none;letter-spacing:0;font-weight:550;color:var(--muted)">{{ col | replace(' ($)', '') }}</th>
+            <td class="num" style="text-align:right">{{ '$' ~ val if col == 'Monthly Plan ($)' else val }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="no-data">No payment row found in the master sheet for this client.</p>
+      {% endif %}
+      <a href="{{ url_for('client_log', name=d.name) }}" class="btn btn-sm" style="margin-top:0.8rem;width:100%">{{ icon('check', 14) }} Mark payment received</a>
+    </div>
 
-  <!-- Raw weight -->
-  <section class="table-section">
-    <h2 class="section-title">Last 14 Weight Entries</h2>
-    {% if d.weight_table %}
-    <table class="data-table">
-      <thead>
-        <tr><th>Date</th><th>Weight ({{ d.weight_unit }})</th></tr>
-      </thead>
+    <div class="panel">
+      <div class="panel-title">Quick actions</div>
+      <div class="stack" style="gap:0.5rem">
+        <a href="{{ url_for('client_log', name=d.name) }}" class="btn btn-sm" style="width:100%">{{ icon('scale', 14) }} Log weight / payment</a>
+        <a href="{{ url_for('client_cronometer', name=d.name) }}" class="btn btn-sm btn-ghost" style="width:100%">{{ icon('flame', 14) }} Cronometer sync</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tables row ──────────────────────────────────────────────────────── -->
+<div class="two-col" style="margin-top:var(--gap)">
+  <div class="panel">
+    <div class="panel-title">Workout log · sessions completed by week</div>
+    {% if d.week_summary %}
+    <table class="table">
+      <thead><tr><th>Week</th><th>Sessions</th><th style="width:45%">Progress</th></tr></thead>
       <tbody>
-        {% for row_date, row_val in d.weight_table | reverse %}
+        {% for w in d.week_summary %}
+        {% set pct = (100 * w.logged / w.total) | round | int if w.total else 0 %}
         <tr>
-          <td>{{ row_date }}</td>
-          <td>{{ row_val }}</td>
+          <td style="font-weight:600;color:var(--text)">{{ w.week }}</td>
+          <td class="num">{{ w.logged }} / {{ w.total }}</td>
+          <td>
+            <div class="bar-track">
+              <div class="bar-fill {{ 'good' if pct >= 80 else ('mid' if pct >= 50 else 'low') }}" style="width:{{ pct }}%"></div>
+            </div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% else %}
+    <p class="no-data">No week tabs found for this client.</p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Last 14 weight entries</div>
+    {% if d.weight_table %}
+    <div style="max-height:320px;overflow-y:auto">
+      <table class="table hover">
+        <thead><tr><th>Date</th><th style="text-align:right">Weight ({{ d.weight_unit }})</th></tr></thead>
+        <tbody>
+          {% for row_date, row_val in d.weight_table | reverse %}
+          <tr><td class="num">{{ row_date }}</td><td class="num" style="text-align:right;color:var(--text)">{{ row_val }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
     <p class="no-data">No weight data available.</p>
     {% endif %}
-  </section>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
 
-  <!-- Payments -->
-  <section class="table-section">
-    <h2 class="section-title">Payment Status</h2>
-    {% if d.payment_record %}
-    <table class="data-table">
-      <tbody>
-        {% for col in d.payment_columns %}
-        {% set val = d.payment_record[col] %}
-        {% if val not in (none, '') %}
-        <tr>
-          <th style="text-align:left">{{ col }}</th>
-          <td>
-            {% if col == 'Status' %}
-              {% set upper = val | upper %}
-              {% if 'OVERDUE' in upper %}<span class="badge badge-red">{{ val }}</span>
-              {% elif upper == 'DUE SOON' %}<span class="badge badge-yellow">{{ val }}</span>
-              {% elif upper in ('OK', 'PAID') %}<span class="badge badge-green">{{ val }}</span>
-              {% else %}{{ val }}{% endif %}
-            {% else %}{{ val }}{% endif %}
-          </td>
-        </tr>
-        {% endif %}
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="no-data">No payment row found in the master sheet for this client.</p>
-    {% endif %}
-  </section>
-
-</div><!-- /tables-grid -->
-
-
-<!-- ── Plotly charts ──────────────────────────────────────────────────── -->
+{% block scripts %}
+{% if not d.error %}
 <script>
 (function () {
-  var darkLayout = {
-    paper_bgcolor: '#1e293b',
-    plot_bgcolor: '#1e293b',
-    font: { color: '#cbd5e1', family: 'system-ui, sans-serif', size: 12 },
-    margin: { t: 20, b: 50, l: 55, r: 20 },
-    xaxis: {
-      gridcolor: '#334155',
-      linecolor: '#475569',
-      tickcolor: '#475569',
-    },
-    yaxis: {
-      gridcolor: '#334155',
-      linecolor: '#475569',
-      tickcolor: '#475569',
-    },
-    showlegend: true,
-    legend: { bgcolor: 'transparent', font: { color: '#94a3b8' } },
+  var PAL = { accent: '#4f9be8', amber: '#d79a52', green: '#3fb583',
+              text: '#9aa7b8', grid: '#2c313c', axis: '#3a4150', faint: '#6b7585' };
+  var base = {
+    paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+    font: { color: PAL.text, family: 'Hanken Grotesk, system-ui, sans-serif', size: 11.5 },
+    margin: { t: 14, b: 38, l: 46, r: 16 },
+    xaxis: { gridcolor: PAL.grid, linecolor: PAL.axis, tickcolor: PAL.axis, zeroline: false },
+    yaxis: { gridcolor: PAL.grid, linecolor: PAL.axis, tickcolor: PAL.axis, zeroline: false },
   };
   var config = { displayModeBar: false, responsive: true };
 
-  // ── Weight chart ────────────────────────────────────────────────────
-  var weightDates  = {{ d.weight_30d_dates   | tojson }};
-  var weightValues = {{ d.weight_30d_values  | tojson }};
-  var weightMA7    = {{ d.weight_30d_ma7     | tojson }};
-
-  var weightTraces = [];
-  if (weightDates.length) {
-    weightTraces.push({
-      x: weightDates, y: weightValues,
-      type: 'scatter', mode: 'markers+lines',
-      name: 'Weight (lbs)',
-      line: { color: '#38bdf8', width: 2 },
-      marker: { color: '#38bdf8', size: 5 },
-    });
+  // ── Weight chart ──────────────────────────────────────────────────────
+  var wDates = {{ d.weight_30d_dates | tojson }};
+  var wVals  = {{ d.weight_30d_values | tojson }};
+  var wMA7   = {{ d.weight_30d_ma7 | tojson }};
+  var wTraces = [];
+  if (wDates.length) {
+    wTraces.push({ x: wDates, y: wVals, type: 'scatter', mode: 'markers+lines',
+      name: 'weight ({{ d.weight_unit }})', line: { color: PAL.accent, width: 2.4 },
+      marker: { color: PAL.accent, size: 5 } });
   }
-  if (weightMA7.length) {
-    weightTraces.push({
-      x: weightDates, y: weightMA7,
-      type: 'scatter', mode: 'lines',
-      name: '7-Day MA',
-      line: { color: '#f59e0b', width: 2, dash: 'dot' },
-    });
+  if (wMA7.length) {
+    wTraces.push({ x: wDates, y: wMA7, type: 'scatter', mode: 'lines', name: '7-day avg',
+      line: { color: PAL.amber, width: 2, dash: 'dash' } });
   }
-
-  if (weightTraces.length) {
-    Plotly.newPlot('chart-weight', weightTraces,
-      Object.assign({}, darkLayout, {
-        yaxis: Object.assign({}, darkLayout.yaxis, { title: 'lbs' }),
-      }), config);
+  if (wTraces.length) {
+    Plotly.newPlot('chart-weight', wTraces, Object.assign({}, base, {
+      height: 250, showlegend: true,
+      legend: { bgcolor: 'transparent', font: { color: PAL.text }, orientation: 'h', y: 1.12, x: 0 },
+    }), config);
   } else {
     document.getElementById('chart-weight').innerHTML =
-      '<p class="no-data" style="padding:2rem">No weight data for the last 30 days.</p>';
+      '<div class="ph" style="height:230px">no weight data in range</div>';
   }
 
-  // ── Calorie chart (dated daily totals from Weight!J) ──────────────────
-  var calDates  = {{ d.cal_dates     | tojson }};
-  var calValues = {{ d.cal_values    | tojson }};
-
-  if (calDates.length) {
-    var calTraces = [{
-      x: calDates, y: calValues,
-      type: 'bar',
-      name: 'Daily Calories',
-      marker: { color: '#38bdf8' },
-    }];
-    Plotly.newPlot('chart-calories', calTraces,
-      Object.assign({}, darkLayout, {
-        yaxis: Object.assign({}, darkLayout.yaxis, { title: 'kcal' }),
-      }), config);
+  // ── Calorie chart ─────────────────────────────────────────────────────
+  var cDates = {{ d.cal_dates | tojson }};
+  var cVals  = {{ d.cal_values | tojson }};
+  if (cDates.length) {
+    Plotly.newPlot('chart-calories', [{
+      x: cDates, y: cVals, type: 'bar', name: 'daily calories',
+      marker: { color: PAL.accent, opacity: 0.85 },
+    }], Object.assign({}, base, { height: 230, bargap: 0.35 }), config);
   } else {
     document.getElementById('chart-calories').innerHTML =
-      '<p class="no-data" style="padding:2rem">No calorie data for the last 30 days.</p>';
+      '<div class="ph" style="height:210px">no nutrition data in range</div>';
   }
 })();
 </script>
-
 {% endif %}
 {% endblock %}

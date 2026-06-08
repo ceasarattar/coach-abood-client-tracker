@@ -1,44 +1,48 @@
 {% extends 'base.html' %}
-{% block title %}Workout Library — Coach Dashboard{% endblock %}
+{% from '_icons.html' import icon %}
+{% block title %}Workout Library · Coach Abood{% endblock %}
+{% block crumbs %}<span class="here">Workout Library</span>{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-head">
   <div>
     <h1 class="page-title">Workout Library</h1>
-    <p class="page-sub">{{ programs | length }} saved program{{ 's' if programs | length != 1 }}</p>
+    <p class="page-sub">{{ programs | length }} reusable program{{ 's' if programs | length != 1 }} · stored locally, never in a client sheet</p>
   </div>
   {% if programs %}
-  <a href="{{ url_for('library_new') }}" class="btn btn-primary">+ New Program</a>
+  <a href="{{ url_for('library_new') }}" class="btn btn-primary">{{ icon('plus', 16) }} New program</a>
   {% endif %}
 </div>
 
 {% if programs %}
-<table class="data-table">
-  <thead>
-    <tr><th>Name</th><th>Training days</th><th>Exercises</th><th>Updated</th><th></th></tr>
-  </thead>
-  <tbody>
-    {% for p in programs %}
-    <tr>
-      <td><strong>{{ p.name }}</strong>{% if p.notes %}<div class="metric-sub">{{ p.notes }}</div>{% endif %}</td>
-      <td>{{ p.training_days }}</td>
-      <td>{{ p.exercise_count }}</td>
-      <td class="metric-sub">{{ p.updated_at }}</td>
-      <td style="white-space:nowrap;text-align:right">
-        <a href="{{ url_for('library_edit', program_id=p.id) }}" class="btn btn-small">Edit</a>
-        <form method="post" action="{{ url_for('library_delete', program_id=p.id) }}"
-              style="display:inline" onsubmit="return confirm('Delete program “{{ p.name }}”? This cannot be undone.');">
-          <button type="submit" class="btn btn-small btn-danger">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="stack">
+  {% for p in programs %}
+  <div class="panel" style="display:flex;align-items:center;gap:1.2rem;padding:1.1rem 1.3rem">
+    <div style="width:44px;height:44px;border-radius:12px;background:var(--surface-2);display:grid;place-items:center;color:var(--accent-bright);flex-shrink:0">{{ icon('layers', 20) }}</div>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+        <span style="font-weight:680;font-size:1rem">{{ p.name }}</span>
+        <span class="pill mono">{{ p.training_days }} days/wk</span>
+        <span class="pill mono">{{ p.exercise_count }} exercises</span>
+      </div>
+      {% if p.notes %}<div class="metric-sub">{{ p.notes }}</div>{% endif %}
+      <div class="metric-sub mono">updated {{ p.updated_at }}</div>
+    </div>
+    <div style="display:flex;gap:0.4rem;flex-shrink:0">
+      <a href="{{ url_for('library_edit', program_id=p.id) }}" class="btn btn-sm">{{ icon('edit', 14) }} Edit</a>
+      <form method="post" action="{{ url_for('library_delete', program_id=p.id) }}" style="display:inline"
+            onsubmit="return confirm('Delete program “{{ p.name }}”? This cannot be undone.');">
+        <button type="submit" class="btn btn-sm btn-danger" title="Delete">{{ icon('trash', 14) }}</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
 {% else %}
-<div class="empty-state">
+<div class="empty">
+  {{ icon('dumbbell', 34) }}
   <p>No programs yet.</p>
-  <a href="{{ url_for('library_new') }}" class="btn btn-primary">Create your first program</a>
+  <a href="{{ url_for('library_new') }}" class="btn btn-primary" style="margin-top:1rem">Create your first program</a>
 </div>
 {% endif %}
 {% endblock %}

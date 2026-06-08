@@ -1,122 +1,141 @@
 {% extends 'base.html' %}
-{% block title %}Clients — Coach Dashboard{% endblock %}
+{% from '_icons.html' import icon %}
+{% block title %}Clients · Coach Abood{% endblock %}
+{% block crumbs %}<span class="here">Clients</span>{% endblock %}
 
 {% block content %}
-<div class="page-header">
+{% set attention = cards | selectattr('status', 'ne', 'green') | list | length %}
+<div class="page-head">
   <div>
-    <h1 class="page-title">Client Overview</h1>
-    <p class="page-sub">{{ cards | length }} active client{{ 's' if cards | length != 1 }}</p>
+    <h1 class="page-title">Clients</h1>
+    <p class="page-sub">{{ cards | length }} active ·
+      <span class="{{ 'tone-amber' if attention else 'tone-muted' }}">{{ attention }} need attention</span>
+    </p>
   </div>
+  <a href="{{ url_for('clients_add') }}" class="btn btn-primary">{{ icon('userplus', 16) }} Add client</a>
 </div>
 
 {% if not cards %}
-<div class="empty-state">
+<div class="empty">
+  {{ icon('users', 34) }}
   <p>No clients yet.</p>
-  <a href="{{ url_for('clients_add') }}" class="btn btn-primary">Add your first client</a>
+  <a href="{{ url_for('clients_add') }}" class="btn btn-primary" style="margin-top:1rem">Add your first client</a>
 </div>
-{% endif %}
+{% else %}
 
-<div class="card-grid">
+<div class="filter-bar">
+  <button type="button" class="btn btn-sm" data-filter="all" onclick="setFilter('all')">All clients</button>
+  <button type="button" class="btn btn-sm btn-ghost" data-filter="attention" onclick="setFilter('attention')">
+    Needs attention {% if attention %}<span class="tone-amber" style="margin-left:4px">{{ attention }}</span>{% endif %}
+  </button>
+</div>
+
+<div class="card-grid" id="card-grid">
   {% for card in cards %}
-  <div class="client-card {% if card.error %}card-error{% endif %}">
-
-    <!-- Card header -->
-    <div class="card-header">
-      <span class="status-dot dot-{{ card.status }}" title="Status: {{ card.status }}"></span>
-      <h2 class="client-name">{{ card.name }}</h2>
-      <span class="plan-badge">${{ card.plan_usd }}/mo</span>
+  {% if card.error %}
+  <div class="panel client-card card-error" data-status="red">
+    <div class="cc-head">
+      <span class="status-dot dot-red" title="Error"></span>
+      <span class="cc-name">{{ card.name }}</span>
+      <span class="pill mono">${{ card.plan_usd }}/mo</span>
     </div>
-
-    {% if card.error %}
-    <!-- Error state -->
-    <div class="error-block">
-      <span class="error-icon">&#9888;</span>
-      <span>{{ card.error }}</span>
-    </div>
-
-    {% else %}
-    <!-- Weight row -->
-    <div class="metric-row">
-      <div class="metric-label">Latest weight</div>
-      <div class="metric-value">
-        {% if card.latest_weight is not none %}
-          {{ '%.1f' | format(card.latest_weight) }} {{ card.weight_unit }}
-          {% if card.weight_delta is not none %}
-            {% if card.weight_delta > 0 %}
-              <span class="delta delta-up">&#9650; {{ '%.1f' | format(card.weight_delta) }}</span>
-            {% elif card.weight_delta < 0 %}
-              <span class="delta delta-down">&#9660; {{ '%.1f' | format(card.weight_delta | abs) }}</span>
-            {% else %}
-              <span class="delta delta-flat">&#8212; 0.0</span>
-            {% endif %}
-          {% endif %}
-        {% else %}
-          <span class="no-data">No data</span>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- 7-day sparkline -->
-    <div id="spark-{{ loop.index }}" class="sparkline"></div>
-
-    <!-- Last workout logged -->
-    <div class="metrics-grid">
-      <div class="metric-block">
-        <div class="metric-label">Last workout logged</div>
-        {% if card.last_logged %}
-          <div class="compliance-value
-            {% if card.last_logged.days_ago <= 2 %}compliance-ok
-            {% elif card.last_logged.days_ago >= 7 %}compliance-bad
-            {% else %}compliance-warn{% endif %}">
-            {% if card.last_logged.days_ago == 0 %}Today
-            {% elif card.last_logged.days_ago == 1 %}Yesterday
-            {% else %}{{ card.last_logged.days_ago }} days ago{% endif %}
-          </div>
-          <div class="metric-sub">{{ card.last_logged.date }}</div>
-        {% else %}
-          <span class="no-data">Never logged</span>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Footer: payment + link -->
-    <div class="card-footer">
-      <span class="badge {{ card.payment_class }}">{{ card.payment_display }}</span>
-      <a href="{{ url_for('client_detail', name=card.name) }}" class="detail-link">View Detail &#8594;</a>
-    </div>
-
-    {% endif %}
+    <div class="error-block">{{ icon('warn', 16, 'error-icon') }} <span>{{ card.error }}</span></div>
   </div>
-  {% endfor %}
-</div>
+  {% else %}
+  <a class="panel client-card" data-status="{{ card.status }}"
+     href="{{ url_for('client_detail', name=card.name) }}">
+    <div class="cc-head">
+      <span class="status-dot dot-{{ card.status }}" title="Status: {{ card.status }}"></span>
+      <span class="cc-name">{{ card.name }}</span>
+      <span class="pill mono">${{ card.plan_usd }}/mo</span>
+    </div>
 
-<!-- Sparkline scripts -->
-<script>
-(function () {
-  var layout = {
-    height: 80,
-    margin: { t: 2, b: 2, l: 2, r: 2 },
-    xaxis: { visible: false, fixedrange: true },
-    yaxis: { visible: false, fixedrange: true },
-    paper_bgcolor: 'transparent',
-    plot_bgcolor: 'transparent',
-    showlegend: false,
-  };
-  var config = { displayModeBar: false, staticPlot: true, responsive: true };
+    <div class="cc-weightrow">
+      <div>
+        <div class="cc-metric-label">Latest weight</div>
+        <div class="cc-weight tnum">
+          {% if card.latest_weight is not none %}{{ '%.1f' | format(card.latest_weight) }}<span class="unit"> {{ card.weight_unit }}</span>
+          {% else %}—{% endif %}
+        </div>
+      </div>
+      <div>
+        {% if card.weight_delta is not none %}
+          {% if card.weight_delta < 0 %}<span class="delta down">{{ icon('arrowright', 12) }} {{ '%.1f' | format(card.weight_delta | abs) }} {{ card.weight_unit }}</span>
+          {% elif card.weight_delta > 0 %}<span class="delta up">{{ icon('arrowright', 12) }} {{ '%.1f' | format(card.weight_delta) }} {{ card.weight_unit }}</span>
+          {% else %}<span class="delta flat">±0.0</span>{% endif %}
+        {% else %}<span class="delta flat">—</span>{% endif %}
+        <div class="cc-vs">vs last entry</div>
+      </div>
+    </div>
 
-  {% for card in cards %}
-  {% if not card.error and card.spark_x %}
-  Plotly.newPlot('spark-{{ loop.index }}', [{
-    x: {{ card.spark_x | tojson }},
-    y: {{ card.spark_y | tojson }},
-    type: 'scatter',
-    mode: 'lines',
-    line: { color: '#22c55e', width: 2 },
-    fill: 'tozeroy',
-    fillcolor: 'rgba(34,197,94,0.08)',
-  }], layout, config);
+    {% if card.spark_y and card.spark_y | length >= 2 %}
+    <div id="spark-{{ loop.index }}" class="cc-spark"></div>
+    {% else %}
+    <div class="cc-spark ph">no recent data</div>
+    {% endif %}
+
+    <div class="cc-foot">
+      {% if card.last_logged %}
+        {% set da = card.last_logged.days_ago %}
+        {% set tone = 'tone-green' if da <= 1 else ('tone-red' if da >= 7 else ('tone-amber' if da >= 5 else 'tone-muted')) %}
+        <span class="cc-logged {{ tone }}">{{ icon('dumbbell', 14) }}
+          {% if da == 0 %}Logged today{% elif da == 1 %}Yesterday{% else %}{{ da }} days ago{% endif %}
+        </span>
+      {% else %}
+        <span class="cc-logged tone-faint">{{ icon('dumbbell', 14) }} Never logged</span>
+      {% endif %}
+    </div>
+
+    <div class="cc-foot" style="border-top:none;padding-top:0;margin-top:0">
+      <span class="badge {{ card.payment_class }}">{{ card.payment_display }}</span>
+      <span class="cc-open">Open {{ icon('chevright', 14) }}</span>
+    </div>
+  </a>
   {% endif %}
   {% endfor %}
-})();
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Client-side filter (All / Needs attention)
+  function setFilter(mode) {
+    document.querySelectorAll('.filter-bar .btn').forEach(function (b) {
+      b.classList.toggle('btn-ghost', b.dataset.filter !== mode);
+    });
+    document.querySelectorAll('#card-grid > [data-status]').forEach(function (c) {
+      c.style.display = (mode === 'attention' && c.dataset.status === 'green') ? 'none' : '';
+    });
+  }
+
+  // Sparklines (Plotly), restyled to the design palette.
+  (function () {
+    var PAL = {
+      green: { line: '#3fb583', fill: 'rgba(63,181,131,0.12)' },
+      amber: { line: '#d79a52', fill: 'rgba(215,154,82,0.12)' },
+    };
+    var layout = {
+      height: 56, margin: { t: 4, b: 4, l: 2, r: 2 },
+      xaxis: { visible: false, fixedrange: true },
+      yaxis: { visible: false, fixedrange: true, autorange: true },
+      paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', showlegend: false,
+    };
+    var config = { displayModeBar: false, staticPlot: true, responsive: true };
+    {% for card in cards %}
+    {% if not card.error and card.spark_y and card.spark_y | length >= 2 %}
+    (function () {
+      {% set down = (card.weight_delta is not none and card.weight_delta <= 0) %}
+      var c = {{ 'PAL.green' if down else 'PAL.amber' }};
+      Plotly.newPlot('spark-{{ loop.index }}', [{
+        x: {{ card.spark_x | tojson }}, y: {{ card.spark_y | tojson }},
+        type: 'scatter', mode: 'lines',
+        line: { color: c.line, width: 2, shape: 'spline', smoothing: 0.6 },
+        fill: 'tozeroy', fillcolor: c.fill,
+      }], layout, config);
+    })();
+    {% endif %}
+    {% endfor %}
+  })();
 </script>
 {% endblock %}

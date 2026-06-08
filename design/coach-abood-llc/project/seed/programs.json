@@ -1,0 +1,968 @@
+[
+  {
+    "name": "Full Body Program",
+    "notes": "RIR progression — Week 1: 1-2 RIR, Weeks 2-5: 1 RIR, Weeks 6-10: 0-1 RIR (final set closest to failure). Reps like '8,6' = set1x8, set2x6. Imported from coach PDF template.",
+    "schedule": [
+      {
+        "day_order": 1,
+        "day_name": "Monday",
+        "workout_type": "Full Body A"
+      },
+      {
+        "day_order": 2,
+        "day_name": "Tuesday",
+        "workout_type": "Rest"
+      },
+      {
+        "day_order": 3,
+        "day_name": "Wednesday",
+        "workout_type": "Full Body B"
+      },
+      {
+        "day_order": 4,
+        "day_name": "Thursday",
+        "workout_type": "Rest"
+      },
+      {
+        "day_order": 5,
+        "day_name": "Friday",
+        "workout_type": "Full Body C"
+      },
+      {
+        "day_order": 6,
+        "day_name": "Saturday",
+        "workout_type": "Rest"
+      },
+      {
+        "day_order": 7,
+        "day_name": "Sunday",
+        "workout_type": "Rest"
+      }
+    ],
+    "exercises": [
+      {
+        "workout_type": "Full Body A",
+        "position": 0,
+        "exercise": "Leg Extensions",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Use a gym/pin seatbelt to hold your hips in place, sit tall, keep your femur still.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body A",
+        "position": 1,
+        "exercise": "Seated Hamstring Curls",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Use a gym/pin seatbelt to hold your hips in place, sit tall, push into the handles.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body A",
+        "position": 2,
+        "exercise": "Chest Support Row",
+        "target_sets": "3",
+        "target_reps": "8,6,5",
+        "coach_notes": "Drive elbows and shoulders back, keep arm between 0-30° from body, don't round your spine in the stretch.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body A",
+        "position": 3,
+        "exercise": "Shoulder Press",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Frontal plane for a good stimulus to both front/side, very little arch at most (ideally none).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body A",
+        "position": 4,
+        "exercise": "Flat Pec Press",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Elbow preferably abducted to roughly 70°, sit tall, no arching.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body A",
+        "position": 5,
+        "exercise": "Adductor Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Try to keep spine long and pelvis still.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body A",
+        "position": 6,
+        "exercise": "Barbell/Machine SLDL",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "Static knee for more ham, moving knee for more glute; maintain full foot pressure.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body A",
+        "position": 7,
+        "exercise": "Long Rope Tricep Pushdown",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Keep the elbow still and shoulder depressed.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body A",
+        "position": 8,
+        "exercise": "Preacher Curl Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Try to support your tricep for more stability if needed.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body A",
+        "position": 9,
+        "exercise": "Straight Leg Calf Raise",
+        "target_sets": "3",
+        "target_reps": "8,6,5",
+        "coach_notes": "Keep the knee straight and refrain from looking down (nerve sensation).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body B",
+        "position": 10,
+        "exercise": "Leg Extensions",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "You can do a squat variation here.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body B",
+        "position": 11,
+        "exercise": "Seated Hamstring Curls",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "You could do lying curls here.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body B",
+        "position": 12,
+        "exercise": "Chest Support Row",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Drive elbows and shoulders back, keep arm between 0-30° from body.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body B",
+        "position": 13,
+        "exercise": "Shoulder Press",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "Frontal plane for a good stimulus to both front/side.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body B",
+        "position": 14,
+        "exercise": "Pec Dec",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "Elbow preferably abducted to roughly 70°, keep pressure in pointer/thumb side of hand.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body B",
+        "position": 15,
+        "exercise": "Adductor Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Try to keep spine long and pelvis still.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body B",
+        "position": 16,
+        "exercise": "SA Tricep Pushdown",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "Keep the elbow still and shoulder depressed.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body B",
+        "position": 17,
+        "exercise": "Alternating Curls",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "Try to support your tricep for more stability if possible.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body B",
+        "position": 18,
+        "exercise": "Straight Leg Calf Raise",
+        "target_sets": "3",
+        "target_reps": "8,6,5",
+        "coach_notes": "Keep the knee straight and refrain from looking down (nerve sensation).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 19,
+        "exercise": "Leg Extensions",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Use a gym/pin seatbelt to hold your hips in place.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 20,
+        "exercise": "Seated Hamstring Curls",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Use a gym/pin seatbelt to hold your hips in place.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 21,
+        "exercise": "Chest Support Row",
+        "target_sets": "3",
+        "target_reps": "8,6,5",
+        "coach_notes": "Drive elbows and shoulders back, keep arm between 0-30° from body.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 22,
+        "exercise": "Shoulder Press",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Frontal plane for a good stimulus to both front/side.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 23,
+        "exercise": "Flat Pec Press",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Elbow preferably abducted to roughly 70°, sit tall, no arching.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 24,
+        "exercise": "Adductor Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Try to keep spine long and pelvis still.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 25,
+        "exercise": "Barbell/Machine SLDL",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "Static knee for more ham, moving knee for more glute; maintain full foot pressure.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 26,
+        "exercise": "Long Rope Tricep Pushdown",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Keep the elbow still and shoulder depressed.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 27,
+        "exercise": "Preacher Curl Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Try to support your tricep for more stability if possible.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Full Body C",
+        "position": 28,
+        "exercise": "Straight Leg Calf Raise",
+        "target_sets": "3",
+        "target_reps": "8,6,5",
+        "coach_notes": "Keep the knee straight and refrain from looking down (nerve sensation).",
+        "tutorial_url": ""
+      }
+    ]
+  },
+  {
+    "name": "PPL UL Program",
+    "notes": "RIR progression — Week 1: 1-2 RIR, Weeks 2-5: 1 RIR, Weeks 6-10: 0-1 RIR (final set closest to failure). Reps like '8,6' = set1x8, set2x6. Imported from coach PDF template.",
+    "schedule": [
+      {
+        "day_order": 1,
+        "day_name": "Monday",
+        "workout_type": "Push"
+      },
+      {
+        "day_order": 2,
+        "day_name": "Tuesday",
+        "workout_type": "Pull"
+      },
+      {
+        "day_order": 3,
+        "day_name": "Wednesday",
+        "workout_type": "Legs"
+      },
+      {
+        "day_order": 4,
+        "day_name": "Thursday",
+        "workout_type": "Rest"
+      },
+      {
+        "day_order": 5,
+        "day_name": "Friday",
+        "workout_type": "Upper"
+      },
+      {
+        "day_order": 6,
+        "day_name": "Saturday",
+        "workout_type": "Lower"
+      },
+      {
+        "day_order": 7,
+        "day_name": "Sunday",
+        "workout_type": "Rest"
+      }
+    ],
+    "exercises": [
+      {
+        "workout_type": "Push",
+        "position": 0,
+        "exercise": "Flat Pec Press",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Sit tall, keep pressure in pointer/thumb, not bottom of hand, elbow abducted to ~70°.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Push",
+        "position": 1,
+        "exercise": "Pec Dec",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Sit tall, keep pressure in pointer/thumb, not bottom of hand.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Push",
+        "position": 2,
+        "exercise": "Shoulder Press Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "In the frontal plane if possible, maintaining stacked joints (elbow under wrist).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Push",
+        "position": 3,
+        "exercise": "Lateral Raise Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Keep elbow extended and come to shoulder height.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Push",
+        "position": 4,
+        "exercise": "JM Press",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "To shorten the workout, skip this and add a set to the pushdown. Band this if you can. Bring the bar to about mouth/forehead height.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Push",
+        "position": 5,
+        "exercise": "SA Tricep Pushdown",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "Keep your shoulder down and arm still, moving through the elbow only, pushing back into shoulder extension a little.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Pull",
+        "position": 6,
+        "exercise": "Tbar Row",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Wider pronated grip, keep your chest down, drive your elbows and shoulders back, avoid stretching in the bottom.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Pull",
+        "position": 7,
+        "exercise": "Tbar Kelso Shrug",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "Pronated grip, chest down, pull shoulders back, avoid excessive elbow bend and stretching in the bottom (spine flexion).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Pull",
+        "position": 8,
+        "exercise": "Lat Pulldown",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit tall, keep your chin up slightly, drive the elbows to below shoulder height.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Pull",
+        "position": 9,
+        "exercise": "Single Arm Lat Row",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "To shorten, skip this and add a set to the pulldown. Sit tall, don't rotate spine or crunch to the side, drive elbow to beside the body.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Pull",
+        "position": 10,
+        "exercise": "Preacher Curl Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Try to keep your elbow/arm stationary and curl to just above 90°.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Legs",
+        "position": 11,
+        "exercise": "Leg Extensions",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Use a gym/pin seatbelt to hold your hips in place, sit tall/slightly leant back, keep your femur stationary.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Legs",
+        "position": 12,
+        "exercise": "Leg Press",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Get max knee flexion without lumbar flexion. Any squat variation, but avoid repeating the same squat pattern twice weekly.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Legs",
+        "position": 13,
+        "exercise": "Seated Hamstring Curls",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit up tall, have the back rest supporting you (gym/pin seatbelt over your hip) and push down into the handles.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Legs",
+        "position": 14,
+        "exercise": "Barbell 45° Back Extension",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Unlock the knee slightly but keep it static as you come down, push the hips back, don't sit onto heels (full foot pressure).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Legs",
+        "position": 15,
+        "exercise": "Adduction Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit tall and pull yourself down into the handles.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Legs",
+        "position": 16,
+        "exercise": "Hip Thrust Machine",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Keep your torso neutral and fully extend at the top, maintain full foot pressure (don't sit onto heels).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Legs",
+        "position": 17,
+        "exercise": "Standing Calf Raise",
+        "target_sets": "3",
+        "target_reps": "8,6,6",
+        "coach_notes": "Get a deep stretch with a straight leg and only come up to neutral (no need to shorten calf).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper",
+        "position": 18,
+        "exercise": "Pec Dec",
+        "target_sets": "2",
+        "target_reps": "5-8",
+        "coach_notes": "Sit tall, keep pressure in pointer/thumb, not bottom of hand.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper",
+        "position": 19,
+        "exercise": "Shoulder Press Machine",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "In the frontal plane if possible, maintaining stacked joints (elbow under wrist).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper",
+        "position": 20,
+        "exercise": "Lateral Raise Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "To shorten, skip and add a set to the shoulder press. Frontal plane if possible, stacked joints (elbow under wrist).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper",
+        "position": 21,
+        "exercise": "Tbar Row",
+        "target_sets": "2",
+        "target_reps": "5-8",
+        "coach_notes": "To shorten, skip and add a set to the shrug. Wider pronated grip, chest down, drive elbows/shoulders back, avoid stretching in the bottom.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper",
+        "position": 22,
+        "exercise": "Tbar Kelso Shrug",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "Pronated grip, chest down, pull shoulders back, avoid excessive elbow bend and stretching in the bottom (spine flexion).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper",
+        "position": 23,
+        "exercise": "Lat Pulldown",
+        "target_sets": "2",
+        "target_reps": "5-8",
+        "coach_notes": "Sit tall, keep your chin up slightly, drive the elbows to below shoulder height.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper",
+        "position": 24,
+        "exercise": "Single Arm Lat Row",
+        "target_sets": "1",
+        "target_reps": "5-8",
+        "coach_notes": "To shorten, skip and add a set to the pulldown. Sit tall, don't rotate spine, drive elbow to beside the body.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper",
+        "position": 25,
+        "exercise": "Preacher Curl Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Try to keep your elbow/arm stationary and curl to just above 90°.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper",
+        "position": 26,
+        "exercise": "SA Tricep Pushdown",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Keep your shoulder down and arm still, moving through the elbow only, pushing back into shoulder extension a little.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower",
+        "position": 27,
+        "exercise": "Leg Extensions",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Use a gym/pin seatbelt to hold your hips in place, sit tall/slightly leant back, keep your femur stationary.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower",
+        "position": 28,
+        "exercise": "Pendulum Squat",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Get max knee flexion without lumbar flexion. Any squat variation, but avoid repeating the same squat pattern twice weekly.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower",
+        "position": 29,
+        "exercise": "Seated Hamstring Curls",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit up tall, back rest supporting you (gym/pin seatbelt over your hip) and push down into the handles.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower",
+        "position": 30,
+        "exercise": "Barbell 45° Back Extension",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Unlock the knee slightly but keep it static as you come down, push the hips back, don't sit onto heels (full foot pressure).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower",
+        "position": 31,
+        "exercise": "Adduction Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit tall and pull yourself down into the handles.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower",
+        "position": 32,
+        "exercise": "Hip Thrust Machine",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Keep your torso neutral and fully extend at the top, maintain full foot pressure (don't sit onto heels).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower",
+        "position": 33,
+        "exercise": "Standing Calf Raise",
+        "target_sets": "3",
+        "target_reps": "8,6,6",
+        "coach_notes": "Get a deep stretch with a straight leg and only come up to neutral (no need to shorten calf).",
+        "tutorial_url": ""
+      }
+    ]
+  },
+  {
+    "name": "Upper Lower Program",
+    "notes": "RIR progression — Week 1: 1-2 RIR, Weeks 2-5: 1 RIR, Weeks 6-10: 0-1 RIR (final set closest to failure). Reps like '8,6' = set1x8, set2x6. Imported from coach PDF template.",
+    "schedule": [
+      {
+        "day_order": 1,
+        "day_name": "Monday",
+        "workout_type": "Upper A"
+      },
+      {
+        "day_order": 2,
+        "day_name": "Tuesday",
+        "workout_type": "Lower A"
+      },
+      {
+        "day_order": 3,
+        "day_name": "Wednesday",
+        "workout_type": "Rest"
+      },
+      {
+        "day_order": 4,
+        "day_name": "Thursday",
+        "workout_type": "Upper B"
+      },
+      {
+        "day_order": 5,
+        "day_name": "Friday",
+        "workout_type": "Lower B"
+      },
+      {
+        "day_order": 6,
+        "day_name": "Saturday",
+        "workout_type": "Rest"
+      },
+      {
+        "day_order": 7,
+        "day_name": "Sunday",
+        "workout_type": "Rest"
+      }
+    ],
+    "exercises": [
+      {
+        "workout_type": "Upper A",
+        "position": 0,
+        "exercise": "Low Incline Press",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Tucked elbow position or neutral; arm about 20-45° from your torso.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper A",
+        "position": 1,
+        "exercise": "Pec Dec",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit tall, keep pressure in pointer/thumb, not bottom of hand.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper A",
+        "position": 2,
+        "exercise": "Lateral Raise Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Keep elbow extended and come to shoulder height.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper A",
+        "position": 3,
+        "exercise": "Tbar Kelso Shrug",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Keep chin/chest up a little, pull shoulders back and slightly up. Avoid excessive elbow bend/thoracic flexion.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper A",
+        "position": 4,
+        "exercise": "Lat Pulldown",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Sit tall, keep your chin up slightly, drive the elbows to below shoulder height.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper A",
+        "position": 5,
+        "exercise": "Single Arm Lat Row",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Sit tall, don't rotate spine or crunch to the side, drive elbow to beside the body.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper A",
+        "position": 6,
+        "exercise": "Incline Bench Tricep Pushdown",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Incline bench so your body is parallel to the cable (30-45°); press the ezy bar forward and down towards quads.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper A",
+        "position": 7,
+        "exercise": "Machine Preacher Curl",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Try to keep your elbow/arm stationary and curl to just above 90°.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower A",
+        "position": 8,
+        "exercise": "Leg Extensions",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Use a gym/pin seatbelt to hold your hips in place, sit tall/slightly leant back, keep your femur stationary.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower A",
+        "position": 9,
+        "exercise": "Leg Press",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Get max knee flexion without lumbar flexion. Any squat variation, avoid repeating the same squat pattern twice weekly.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower A",
+        "position": 10,
+        "exercise": "Seated Hamstring Curls",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit up tall, back rest supporting you (gym/pin seatbelt over your hip), push down into the handles.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower A",
+        "position": 11,
+        "exercise": "Barbell 45° Back Extension",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Unlock the knee slightly but keep it static as you come down, push the hips back, don't sit onto heels (full foot pressure).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower A",
+        "position": 12,
+        "exercise": "Adduction Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit tall and pull yourself down into the handles.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower A",
+        "position": 13,
+        "exercise": "Hip Thrust Machine",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Keep your torso neutral and fully extend at the top, maintain full foot pressure (don't sit onto heels).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower A",
+        "position": 14,
+        "exercise": "Straight Leg Calf Raise",
+        "target_sets": "3",
+        "target_reps": "8,6,6",
+        "coach_notes": "Get a deep stretch with a straight leg and only come up to neutral (no need to shorten calf).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper B",
+        "position": 15,
+        "exercise": "Low Incline Press",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Tucked elbow position or neutral; arm about 20-45° from your torso.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper B",
+        "position": 16,
+        "exercise": "Pec Dec",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit tall, keep pressure in pointer/thumb, not bottom of hand.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper B",
+        "position": 17,
+        "exercise": "Lateral Raise Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "You could add 1 set to the shoulder press if you wanted. Keep elbow extended and come to shoulder height.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper B",
+        "position": 18,
+        "exercise": "Tbar Kelso Shrug",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Keep chin/chest up a little, pull shoulders back and slightly up. Avoid excessive elbow bend/thoracic flexion.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper B",
+        "position": 19,
+        "exercise": "Lat Pulldown",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Sit tall, keep your chin up slightly, drive the elbows to below shoulder height.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper B",
+        "position": 20,
+        "exercise": "Single Arm Lat Row",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Sit tall, don't rotate spine or crunch to the side, drive elbow to beside the body.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper B",
+        "position": 21,
+        "exercise": "SA Tricep Pushdown",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Keep your shoulder down and arm still, moving through the elbow only, pushing back into shoulder extension a little.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Upper B",
+        "position": 22,
+        "exercise": "Alternating Db Curl",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Try to keep your elbow/arm stationary and curl to just above 90°.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower B",
+        "position": 23,
+        "exercise": "Leg Extensions",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Use a gym/pin seatbelt to hold your hips in place, sit tall/slightly leant back, keep your femur stationary.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower B",
+        "position": 24,
+        "exercise": "Pendulum Squat",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Get max knee flexion without lumbar flexion. Any squat variation, avoid repeating the same squat pattern twice weekly.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower B",
+        "position": 25,
+        "exercise": "Seated Hamstring Curls",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit up tall, back rest supporting you (gym/pin seatbelt over your hip), push down into the handles.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower B",
+        "position": 26,
+        "exercise": "Barbell 45° Back Extension",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Unlock the knee slightly but keep it static as you come down, push the hips back, don't sit onto heels (full foot pressure).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower B",
+        "position": 27,
+        "exercise": "Adduction Machine",
+        "target_sets": "2",
+        "target_reps": "8,6",
+        "coach_notes": "Sit tall and pull yourself down into the handles.",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower B",
+        "position": 28,
+        "exercise": "Hip Thrust Machine",
+        "target_sets": "1",
+        "target_reps": "6",
+        "coach_notes": "Keep your torso neutral and fully extend at the top, maintain full foot pressure (don't sit onto heels).",
+        "tutorial_url": ""
+      },
+      {
+        "workout_type": "Lower B",
+        "position": 29,
+        "exercise": "Straight Leg Calf Raise",
+        "target_sets": "3",
+        "target_reps": "8,6,6",
+        "coach_notes": "Get a deep stretch with a straight leg and only come up to neutral (no need to shorten calf).",
+        "tutorial_url": ""
+      }
+    ]
+  }
+]

@@ -1,53 +1,57 @@
 {% extends 'base.html' %}
-{% block title %}Cronometer — {{ client.name }}{% endblock %}
+{% from '_icons.html' import icon %}
+{% block title %}Cronometer · {{ client.name }}{% endblock %}
+{% block crumbs %}
+  <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span>
+  <a href="{{ url_for('client_detail', name=client.name) }}">{{ client.name }}</a><span class="sep">/</span>
+  <span class="here">Cronometer</span>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<span class="back-link" onclick="location.href='{{ url_for('client_detail', name=client.name) }}'">{{ icon('arrowleft', 14) }} {{ client.name }}</span>
+<div class="page-head">
   <div>
-    <a href="{{ url_for('client_detail', name=client.name) }}" class="back-link">&#8592; {{ client.name }}</a>
-    <h1 class="page-title">Cronometer Sync</h1>
+    <h1 class="page-title">{{ icon('flame', 22) }} Cronometer sync</h1>
     <p class="page-sub">Pull {{ client.name }}'s daily calories from Cronometer into their sheet.</p>
   </div>
 </div>
 
-<div class="form-card">
-  <h2 class="section-title">Credentials</h2>
-  <p class="field-hint">
-    Stored <strong>encrypted on this computer only</strong> — never in the sheet,
-    the database, or GitHub. Status:
-    {% if has_creds %}<strong style="color:var(--green)">saved</strong>{% else %}<strong style="color:var(--muted)">not set</strong>{% endif %}.
-  </p>
-  <form method="post">
-    <input type="hidden" name="action" value="save">
-    <label class="field"><span class="field-label">Cronometer email</span>
-      <input type="email" name="cron_email" placeholder="client@example.com" required></label>
-    <label class="field"><span class="field-label">Cronometer password</span>
-      <input type="password" name="cron_password" placeholder="{{ '•••••••• (re-enter to replace)' if has_creds else 'password' }}" required></label>
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">{{ 'Update credentials' if has_creds else 'Save credentials' }}</button>
+<div class="stack" style="max-width:560px">
+  <div class="panel">
+    <div class="panel-title">Credentials
+      {% if has_creds %}<span class="badge green">saved</span>{% else %}<span class="badge gray">not set</span>{% endif %}
     </div>
-  </form>
-</div>
+    <p class="field-hint" style="margin-bottom:1rem">Stored <strong>encrypted on this computer only</strong> — never in the sheet, the database, or GitHub.</p>
+    <form method="post">
+      <input type="hidden" name="action" value="save">
+      <label class="field"><span class="field-label">Cronometer email</span>
+        <input type="email" name="cron_email" class="mono" placeholder="client@example.com" required></label>
+      <label class="field"><span class="field-label">Cronometer password</span>
+        <input type="password" name="cron_password" placeholder="{{ '•••••••• (re-enter to replace)' if has_creds else 'password' }}" required></label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ 'Update credentials' if has_creds else 'Save credentials' }}</button>
+      </div>
+    </form>
+  </div>
 
-{% if has_creds %}
-<div class="form-card">
-  <h2 class="section-title">Sync now</h2>
-  <p class="field-hint">Logs into Cronometer in the background, exports the recent
-    daily nutrition, and writes calories into the Weight tab by date. Run it
-    manually whenever you want (e.g. daily or weekly).</p>
-  <form method="post">
-    <input type="hidden" name="action" value="sync">
-    <label class="field"><span class="field-label">Days to pull</span>
-      <input type="number" name="days" value="14" min="1" max="90" class="narrow"></label>
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Sync nutrition</button>
-    </div>
-  </form>
-</div>
+  {% if has_creds %}
+  <div class="panel">
+    <div class="panel-title">Sync now</div>
+    <p class="field-hint" style="margin-bottom:1rem">Logs into Cronometer in the background, exports the recent daily nutrition, and writes calories into the Weight tab by date.</p>
+    <form method="post">
+      <input type="hidden" name="action" value="sync">
+      <label class="field" style="max-width:160px"><span class="field-label">Days to pull</span>
+        <input type="number" name="days" class="num" value="14" min="1" max="90"></label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ icon('flame', 16) }} Sync nutrition</button>
+      </div>
+    </form>
+  </div>
 
-<form method="post" onsubmit="return confirm('Remove stored Cronometer login for {{ client.name }}?');">
-  <input type="hidden" name="action" value="delete">
-  <button type="submit" class="btn btn-danger btn-small">Remove stored credentials</button>
-</form>
-{% endif %}
+  <form method="post" onsubmit="return confirm('Remove stored Cronometer login for {{ client.name }}?');">
+    <input type="hidden" name="action" value="delete">
+    <button type="submit" class="btn btn-danger btn-sm">{{ icon('trash', 14) }} Remove stored credentials</button>
+  </form>
+  {% endif %}
+</div>
 {% endblock %}

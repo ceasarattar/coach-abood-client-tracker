@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Add Client — Coach Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{{ url_for('index') }}" class="back-link">&#8592; Clients</a>
+    <h1 class="page-title">Add a Client</h1>
+    <p class="page-sub">Register a Google Sheet you already have. It appears on the dashboard immediately.</p>
+  </div>
+</div>
+
+<form method="post" class="form-card">
+  <label class="field"><span class="field-label">Client name <span class="req">*</span></span>
+    <input type="text" name="name" value="{{ form.get('name', '') }}" required
+           placeholder="e.g. Coach Abood">
+    <span class="field-hint">Must match the client's row in the master Payments tab for payment status to show.</span>
+  </label>
+
+  <label class="field"><span class="field-label">Google Sheet URL or ID <span class="req">*</span></span>
+    <input type="text" name="sheet" value="{{ form.get('sheet', '') }}" required
+           placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+    <span class="field-hint">Paste the full URL — the ID is extracted automatically.</span>
+  </label>
+
+  <div class="field-row">
+    <label class="field"><span class="field-label">Monthly plan ($)</span>
+      <input type="number" name="plan" min="0" step="1" value="{{ form.get('plan', '') }}" class="narrow"></label>
+    <label class="field"><span class="field-label">Weight unit</span>
+      <select name="weight_unit">
+        <option value="kg" {{ 'selected' if form.get('weight_unit') == 'kg' }}>kg</option>
+        <option value="lbs" {{ 'selected' if form.get('weight_unit') == 'lbs' }}>lbs</option>
+      </select></label>
+  </div>
+
+  <label class="field"><span class="field-label">Master sheet ID (optional override)</span>
+    <input type="text" name="master_sheet" value="{{ form.get('master_sheet', '') }}"
+           placeholder="leave blank to use the default master sheet">
+  </label>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Add client</button>
+    <a href="{{ url_for('index') }}" class="btn">Cancel</a>
+  </div>
+</form>
+
+<p class="page-sub">
+  Building a brand-new client from scratch (program, targets, generated sheet)?
+  Use the <a href="{{ url_for('clients_new') }}" class="inline-link">full setup wizard</a> instead.
+</p>
+{% endblock %}

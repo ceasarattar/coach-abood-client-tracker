@@ -1,27 +1,33 @@
 {% extends 'base.html' %}
-{% block title %}Log Entry — {{ client.name }}{% endblock %}
+{% from '_icons.html' import icon %}
+{% block title %}Log Entry · {{ client.name }}{% endblock %}
+{% block crumbs %}
+  <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span>
+  <a href="{{ url_for('client_detail', name=client.name) }}">{{ client.name }}</a><span class="sep">/</span>
+  <span class="here">Log entry</span>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<span class="back-link" onclick="location.href='{{ url_for('client_detail', name=client.name) }}'">{{ icon('arrowleft', 14) }} {{ client.name }}</span>
+<div class="page-head">
   <div>
-    <a href="{{ url_for('client_detail', name=client.name) }}" class="back-link">&#8592; {{ client.name }}</a>
-    <h1 class="page-title">Log Entry — {{ client.name }}</h1>
+    <h1 class="page-title">Log entry — {{ client.name }}</h1>
     <p class="page-sub">Write data on behalf of the client. Dates use dd/mm/yyyy.</p>
   </div>
 </div>
 
-<div class="tables-grid">
-  <!-- Weight entry -->
-  <section class="form-card">
-    <h2 class="section-title">Log weight</h2>
+<div class="two-col">
+  <!-- Weight -->
+  <section class="panel">
+    <div class="panel-title">{{ icon('scale', 14) }} Log weight</div>
     <form method="post">
       <input type="hidden" name="kind" value="weight">
       <label class="field">
-        <span class="field-label">Date (dd/mm/yyyy)</span>
-        <input type="text" name="date" value="{{ today }}" placeholder="dd/mm/yyyy" required>
+        <span class="field-label">{{ icon('calendar', 14) }} Date (dd/mm/yyyy)</span>
+        <input type="text" name="date" class="mono" value="{{ today }}" placeholder="dd/mm/yyyy" required>
       </label>
       <label class="field">
-        <span class="field-label">Weight ({{ client.weight_unit or 'kg' }})</span>
+        <span class="field-label">{{ icon('scale', 14) }} Weight ({{ client.weight_unit or 'kg' }})</span>
         <input type="text" name="weight" placeholder="e.g. 80.4" required>
       </label>
       <div class="form-actions">
@@ -31,14 +37,14 @@
     </form>
   </section>
 
-  <!-- Payment received -->
-  <section class="form-card">
-    <h2 class="section-title">Mark payment received</h2>
+  <!-- Payment -->
+  <section class="panel">
+    <div class="panel-title">{{ icon('dollar', 14) }} Mark payment received</div>
     <form method="post">
       <input type="hidden" name="kind" value="payment">
       <label class="field">
-        <span class="field-label">Paid date (dd/mm/yyyy)</span>
-        <input type="text" name="paid_date" value="{{ today }}" placeholder="dd/mm/yyyy" required>
+        <span class="field-label">{{ icon('calendar', 14) }} Paid date (dd/mm/yyyy)</span>
+        <input type="text" name="paid_date" class="mono" value="{{ today }}" placeholder="dd/mm/yyyy" required>
       </label>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Mark paid</button>

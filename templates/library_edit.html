@@ -1,60 +1,83 @@
 {% extends 'base.html' %}
-{% block title %}{{ 'New' if mode == 'new' else 'Edit' }} Program — Coach Dashboard{% endblock %}
+{% from '_icons.html' import icon %}
+{% block title %}{{ 'New' if mode == 'new' else 'Edit' }} Program · Coach Abood{% endblock %}
+{% block crumbs %}
+  <a href="{{ url_for('library') }}">Workout Library</a><span class="sep">/</span>
+  <span class="here">{{ 'New program' if mode == 'new' else 'Edit program' }}</span>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<span class="back-link" onclick="location.href='{{ url_for('library') }}'">{{ icon('arrowleft', 14) }} Library</span>
+
+<form method="post">
+<div class="page-head">
   <div>
-    <a href="{{ url_for('library') }}" class="back-link">&#8592; Library</a>
-    <h1 class="page-title">{{ 'New Program' if mode == 'new' else 'Edit Program' }}</h1>
+    <h1 class="page-title">{{ 'New program' if mode == 'new' else 'Edit program' }}</h1>
+    <p class="page-sub">Build a reusable program template.</p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('library') }}" class="btn btn-ghost">Cancel</a>
+    <button type="submit" class="btn btn-primary">{{ icon('check', 16) }} {{ 'Create program' if mode == 'new' else 'Save changes' }}</button>
   </div>
 </div>
 
-<form method="post" class="form-card">
-  <label class="field">
-    <span class="field-label">Program name</span>
-    <input type="text" name="name" value="{{ program.name }}" required placeholder="e.g. PPL Hypertrophy">
-  </label>
-  <label class="field">
-    <span class="field-label">Notes (optional)</span>
-    <input type="text" name="notes" value="{{ program.notes }}" placeholder="short description">
-  </label>
-
-  <h2 class="section-title">Weekly schedule</h2>
-  <div class="schedule-grid">
-    {% for s in program.schedule %}
-    <label class="field">
-      <span class="field-label">{{ s.day_name }}</span>
-      <input type="text" name="schedule_{{ s.day_name }}" list="wt-list"
-             value="{{ s.workout_type or 'Rest' }}" placeholder="Rest">
-    </label>
-    {% endfor %}
+<div class="stack">
+  <div class="panel">
+    <div class="field-row">
+      <label class="field" style="flex:2">
+        <span class="field-label">Program name <span class="req">*</span></span>
+        <input type="text" name="name" value="{{ program.name }}" required placeholder="e.g. PPL Hypertrophy">
+      </label>
+      <label class="field" style="flex:3">
+        <span class="field-label">Notes</span>
+        <input type="text" name="notes" value="{{ program.notes }}" placeholder="RIR progression, intent, etc.">
+      </label>
+    </div>
   </div>
 
-  <h2 class="section-title">Exercises</h2>
-  <table class="data-table" id="ex-table">
-    <thead>
-      <tr><th>Type</th><th>Exercise</th><th>Sets</th><th>Reps</th><th>Coach notes</th><th>Tutorial URL</th><th></th></tr>
-    </thead>
-    <tbody id="ex-body">
-      {% for e in program.exercises %}
-      <tr>
-        <td><input type="text" name="ex_type" list="wt-list" value="{{ e.workout_type }}" placeholder="day"></td>
-        <td><input type="text" name="ex_name" value="{{ e.exercise }}"></td>
-        <td><input type="text" name="ex_sets" value="{{ e.target_sets }}" class="narrow"></td>
-        <td><input type="text" name="ex_reps" value="{{ e.target_reps }}" class="narrow"></td>
-        <td><input type="text" name="ex_notes" value="{{ e.coach_notes }}"></td>
-        <td><input type="text" name="ex_url" value="{{ e.tutorial_url }}"></td>
-        <td><button type="button" class="btn btn-small btn-danger" onclick="removeRow(this)">&times;</button></td>
-      </tr>
+  <div class="panel">
+    <div class="panel-title">Weekly schedule</div>
+    <div class="sched-grid">
+      {% for s in program.schedule %}
+      <div>
+        <div class="cc-metric-label" style="margin-bottom:0.35rem">{{ s.day_name[:3] }}</div>
+        <input type="text" name="schedule_{{ s.day_name }}" list="wt-list" value="{{ s.workout_type or 'Rest' }}"
+               placeholder="Rest" style="text-align:center;font-weight:600">
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-  <button type="button" class="btn btn-small" onclick="addRow()">+ Add exercise</button>
-
-  <div class="form-actions">
-    <button type="submit" class="btn btn-primary">{{ 'Create program' if mode == 'new' else 'Save changes' }}</button>
-    <a href="{{ url_for('library') }}" class="btn">Cancel</a>
+    </div>
   </div>
+
+  <div class="panel">
+    <div class="panel-title">Exercises <span class="pill mono" id="ex-count">0</span></div>
+    <div style="overflow-x:auto">
+      <table class="table" id="ex-table" style="min-width:760px">
+        <thead>
+          <tr><th style="width:110px">Day / type</th><th>Exercise</th><th style="width:60px">Sets</th><th style="width:80px">Reps</th><th>Coach notes</th><th style="width:130px">Tutorial</th><th style="width:50px"></th></tr>
+        </thead>
+        <tbody id="ex-body">
+          {% for e in program.exercises %}
+          <tr>
+            <td><input type="text" name="ex_type" list="wt-list" value="{{ e.workout_type }}" placeholder="day"></td>
+            <td><input type="text" name="ex_name" value="{{ e.exercise }}" placeholder="Exercise name"></td>
+            <td><input type="text" name="ex_sets" class="num" value="{{ e.target_sets }}" placeholder="2" style="text-align:center"></td>
+            <td><input type="text" name="ex_reps" class="num" value="{{ e.target_reps }}" placeholder="8,6" style="text-align:center"></td>
+            <td><input type="text" name="ex_notes" value="{{ e.coach_notes }}" placeholder="cue / setup"></td>
+            <td><input type="text" name="ex_url" class="mono" value="{{ e.tutorial_url }}" placeholder="url"></td>
+            <td><button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeRow(this)">{{ icon('trash', 13) }}</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="btn btn-sm" style="margin-top:0.9rem" onclick="addRow()">{{ icon('plus', 14) }} Add exercise</button>
+  </div>
+</div>
+
+<div class="form-actions">
+  <button type="submit" class="btn btn-primary">{{ icon('check', 16) }} {{ 'Create program' if mode == 'new' else 'Save changes' }}</button>
+  <a href="{{ url_for('library') }}" class="btn btn-ghost">Cancel</a>
+</div>
 </form>
 
 <datalist id="wt-list">
@@ -64,24 +87,28 @@
 <template id="ex-row-template">
   <tr>
     <td><input type="text" name="ex_type" list="wt-list" placeholder="day"></td>
-    <td><input type="text" name="ex_name"></td>
-    <td><input type="text" name="ex_sets" class="narrow"></td>
-    <td><input type="text" name="ex_reps" class="narrow"></td>
-    <td><input type="text" name="ex_notes"></td>
-    <td><input type="text" name="ex_url"></td>
-    <td><button type="button" class="btn btn-small btn-danger" onclick="removeRow(this)">&times;</button></td>
+    <td><input type="text" name="ex_name" placeholder="Exercise name"></td>
+    <td><input type="text" name="ex_sets" class="num" placeholder="2" style="text-align:center"></td>
+    <td><input type="text" name="ex_reps" class="num" placeholder="8,6" style="text-align:center"></td>
+    <td><input type="text" name="ex_notes" placeholder="cue / setup"></td>
+    <td><input type="text" name="ex_url" class="mono" placeholder="url"></td>
+    <td><button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeRow(this)">{{ icon('trash', 13) }}</button></td>
   </tr>
 </template>
+{% endblock %}
 
+{% block scripts %}
 <script>
+function updateCount() {
+  document.getElementById('ex-count').textContent = document.querySelectorAll('#ex-body tr').length;
+}
 function addRow() {
   var tpl = document.getElementById('ex-row-template');
   document.getElementById('ex-body').appendChild(tpl.content.cloneNode(true));
+  updateCount();
 }
-function removeRow(btn) {
-  btn.closest('tr').remove();
-}
-// Start with one empty row if none exist.
+function removeRow(btn) { btn.closest('tr').remove(); updateCount(); }
 if (!document.querySelector('#ex-body tr')) { addRow(); }
+updateCount();
 </script>
 {% endblock %}

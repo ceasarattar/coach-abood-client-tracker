@@ -1,51 +1,88 @@
 {% extends 'base.html' %}
-{% block title %}Add Client — Coach Dashboard{% endblock %}
+{% from '_icons.html' import icon %}
+{% block title %}Add a client · Coach Abood{% endblock %}
+{% block crumbs %}
+  <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span><span class="here">Add client</span>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<span class="back-link" onclick="location.href='{{ url_for('index') }}'">{{ icon('arrowleft', 14) }} Clients</span>
+<div class="page-head">
   <div>
-    <a href="{{ url_for('index') }}" class="back-link">&#8592; Clients</a>
-    <h1 class="page-title">Add a Client</h1>
-    <p class="page-sub">Register a Google Sheet you already have. It appears on the dashboard immediately.</p>
+    <h1 class="page-title">Add a client</h1>
+    <p class="page-sub">Two ways in — connect a sheet you already built, or set one up from scratch.</p>
   </div>
 </div>
 
-<form method="post" class="form-card">
-  <label class="field"><span class="field-label">Client name <span class="req">*</span></span>
-    <input type="text" name="name" value="{{ form.get('name', '') }}" required
-           placeholder="e.g. Coach Abood">
-    <span class="field-hint">Must match the client's row in the master Payments tab for payment status to show.</span>
-  </label>
+<div class="two-col" style="align-items:stretch">
+  <!-- Path A — connect an existing sheet -->
+  <form method="post" class="panel" style="display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem">
+      <div style="width:38px;height:38px;border-radius:10px;background:var(--accent-dim);color:var(--accent-bright);display:grid;place-items:center">{{ icon('sheet', 18) }}</div>
+      <div>
+        <div style="font-weight:680">Connect an existing sheet</div>
+        <div style="font-size:0.76rem;color:var(--muted)">Most common · appears on the dashboard right away</div>
+      </div>
+    </div>
 
-  <label class="field"><span class="field-label">Google Sheet URL or ID <span class="req">*</span></span>
-    <input type="text" name="sheet" value="{{ form.get('sheet', '') }}" required
-           placeholder="https://docs.google.com/spreadsheets/d/.../edit">
-    <span class="field-hint">Paste the full URL — the ID is extracted automatically.</span>
-  </label>
+    <label class="field">
+      <span class="field-label">Client name <span class="req">*</span></span>
+      <input type="text" name="name" value="{{ form.get('name', '') }}" required placeholder="e.g. Alex Morgan">
+      <span class="field-hint">must match the master Payments tab</span>
+    </label>
+    <label class="field">
+      <span class="field-label">{{ icon('link', 14) }} Google Sheet URL or ID <span class="req">*</span></span>
+      <input type="text" name="sheet" class="mono" value="{{ form.get('sheet', '') }}" required placeholder="https://docs.google.com/spreadsheets/d/…">
+      <span class="field-hint">paste the full URL — the ID is extracted automatically</span>
+    </label>
+    <div class="field-row">
+      <label class="field"><span class="field-label">Monthly plan ($)</span>
+        <input type="number" name="plan" min="0" step="1" class="num narrow" value="{{ form.get('plan', '') }}" placeholder="150"></label>
+      <label class="field"><span class="field-label">Weight unit</span>
+        <select name="weight_unit">
+          <option value="kg" {{ 'selected' if form.get('weight_unit') == 'kg' }}>kg</option>
+          <option value="lbs" {{ 'selected' if form.get('weight_unit') == 'lbs' }}>lbs</option>
+        </select></label>
+    </div>
 
-  <div class="field-row">
-    <label class="field"><span class="field-label">Monthly plan ($)</span>
-      <input type="number" name="plan" min="0" step="1" value="{{ form.get('plan', '') }}" class="narrow"></label>
-    <label class="field"><span class="field-label">Weight unit</span>
-      <select name="weight_unit">
-        <option value="kg" {{ 'selected' if form.get('weight_unit') == 'kg' }}>kg</option>
-        <option value="lbs" {{ 'selected' if form.get('weight_unit') == 'lbs' }}>lbs</option>
-      </select></label>
+    <button type="button" class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="document.getElementById('adv').hidden = !document.getElementById('adv').hidden">
+      {{ icon('chevright', 13) }} Advanced
+    </button>
+    <div id="adv" hidden style="margin-top:0.8rem">
+      <label class="field">
+        <span class="field-label">Master sheet ID (override)</span>
+        <input type="text" name="master_sheet" class="mono" value="{{ form.get('master_sheet', '') }}" placeholder="leave blank to use the default master">
+      </label>
+    </div>
+
+    <div style="margin-top:auto;padding-top:1.2rem">
+      <button type="submit" class="btn btn-primary" style="width:100%">{{ icon('check', 16) }} Add client</button>
+    </div>
+  </form>
+
+  <!-- Path B — build from scratch -->
+  <div class="panel" style="display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem">
+      <div style="width:38px;height:38px;border-radius:10px;background:var(--surface-2);color:var(--accent-bright);display:grid;place-items:center">{{ icon('sparkles', 18) }}</div>
+      <div>
+        <div style="font-weight:680">Build a new client from scratch</div>
+        <div style="font-size:0.76rem;color:var(--muted)">Program, RIR, targets → generate their sheet</div>
+      </div>
+    </div>
+    <p style="font-size:0.86rem;color:var(--text-2);line-height:1.6">
+      Use the guided setup to define everything in one place. It writes to the master sheet's admin tabs, then runs
+      <span class="mono" style="color:var(--accent-bright)">Coach Tools → Generate Client Template</span> and registers the new sheet.
+    </p>
+    <ul style="list-style:none;display:flex;flex-direction:column;gap:0.55rem;margin:1.1rem 0;font-size:0.84rem;color:var(--muted)">
+      {% for s in ['Client info & billing', 'Pick or build a program', 'Week & RIR progression', 'Nutrition targets'] %}
+      <li style="display:flex;align-items:center;gap:0.6rem">
+        <span style="width:20px;height:20px;border-radius:6px;background:var(--surface-2);color:var(--accent-bright);display:grid;place-items:center;font-size:0.7rem;font-family:var(--mono);font-weight:700">{{ loop.index }}</span>{{ s }}
+      </li>
+      {% endfor %}
+    </ul>
+    <div style="margin-top:auto">
+      <a href="{{ url_for('clients_new') }}" class="btn" style="width:100%">Start guided setup {{ icon('arrowright', 16) }}</a>
+    </div>
   </div>
-
-  <label class="field"><span class="field-label">Master sheet ID (optional override)</span>
-    <input type="text" name="master_sheet" value="{{ form.get('master_sheet', '') }}"
-           placeholder="leave blank to use the default master sheet">
-  </label>
-
-  <div class="form-actions">
-    <button type="submit" class="btn btn-primary">Add client</button>
-    <a href="{{ url_for('index') }}" class="btn">Cancel</a>
-  </div>
-</form>
-
-<p class="page-sub">
-  Building a brand-new client from scratch (program, targets, generated sheet)?
-  Use the <a href="{{ url_for('clients_new') }}" class="inline-link">full setup wizard</a> instead.
-</p>
+</div>
 {% endblock %}

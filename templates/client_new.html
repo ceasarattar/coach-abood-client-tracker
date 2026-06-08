@@ -1,142 +1,149 @@
 {% extends 'base.html' %}
-{% block title %}New Client — Coach Dashboard{% endblock %}
+{% from '_icons.html' import icon %}
+{% block title %}New client setup · Coach Abood{% endblock %}
+{% block crumbs %}
+  <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span>
+  <a href="{{ url_for('clients_add') }}">Add client</a><span class="sep">/</span>
+  <span class="here">New setup</span>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<span class="back-link" onclick="location.href='{{ url_for('clients_add') }}'">{{ icon('arrowleft', 14) }} Add client</span>
+<div class="page-head">
   <div>
-    <a href="{{ url_for('index') }}" class="back-link">&#8592; Clients</a>
-    <h1 class="page-title">New Client Setup</h1>
-    <p class="page-sub">Fill each step, write to the master sheet, generate, then register.</p>
+    <h1 class="page-title">New client setup</h1>
+    <p class="page-sub">Define everything, write to the master sheet, generate, then register.</p>
   </div>
 </div>
 
-<!-- Step progress -->
+<!-- Stepper -->
 <div class="wizard-steps">
-  <span class="wstep active" data-step="1">1. Client Info</span>
-  <span class="wstep" data-step="2">2. Program</span>
-  <span class="wstep" data-step="3">3. Week &amp; RIR</span>
-  <span class="wstep" data-step="4">4. Targets</span>
-  <span class="wstep" data-step="5">5. Review</span>
-  <span class="wstep" data-step="6">6. Generate</span>
+  <span class="wstep active" data-step="1"><span class="wstep-num">1</span> Client</span>
+  <span class="wstep" data-step="2"><span class="wstep-num">2</span> Program</span>
+  <span class="wstep" data-step="3"><span class="wstep-num">3</span> Week &amp; RIR</span>
+  <span class="wstep" data-step="4"><span class="wstep-num">4</span> Targets</span>
+  <span class="wstep" data-step="5"><span class="wstep-num">5</span> Review</span>
+  <span class="wstep" data-step="6"><span class="wstep-num">6</span> Generate</span>
 </div>
 
-<form method="post" id="wizard-form" class="form-card">
+<form method="post" id="wizard-form">
   <input type="hidden" name="action" value="write_master">
 
-  <!-- STEP 1 — Client Info -->
-  <section class="wpanel" data-panel="1">
-    <h2 class="section-title">Step 1 — Client Info</h2>
-    <label class="field"><span class="field-label">Client name</span>
-      <input type="text" name="name" required></label>
-    <label class="field"><span class="field-label">Email</span>
-      <input type="email" name="email"></label>
-    <label class="field"><span class="field-label">Program name</span>
-      <input type="text" name="program_name" placeholder="e.g. PPL / Upper / Lower"></label>
-    <label class="field"><span class="field-label">Goal</span>
-      <input type="text" name="goal" placeholder="e.g. Build muscle"></label>
-    <label class="field"><span class="field-label">Start date (yyyy-mm-dd)</span>
-      <input type="date" name="start_date"></label>
-    <label class="field"><span class="field-label">Weight unit</span>
-      <select name="weight_unit"><option value="kg">kg</option><option value="lbs">lbs</option></select></label>
-    <label class="field"><span class="field-label">Monthly plan ($)</span>
-      <input type="number" name="plan_usd" step="1" min="0"></label>
-    <label class="field"><span class="field-label">Billing day (1-28)</span>
-      <input type="number" name="billing_day" min="1" max="28" value="1"></label>
-  </section>
+  <div class="panel" style="margin-bottom:1.2rem">
+    <!-- STEP 1 — Client Info -->
+    <section class="wpanel" data-panel="1">
+      <div class="panel-title">Step 1 · Client info</div>
+      <div class="field-row">
+        <label class="field"><span class="field-label">Client name <span class="req">*</span></span><input type="text" name="name" required placeholder="Full name"></label>
+        <label class="field"><span class="field-label">Email</span><input type="email" name="email" class="mono" placeholder="name@email.com"></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span class="field-label">Program name</span><input type="text" name="program_name" placeholder="e.g. PPL / Upper / Lower"></label>
+        <label class="field"><span class="field-label">Goal</span><input type="text" name="goal" placeholder="e.g. Build muscle"></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span class="field-label">Start date</span><input type="date" name="start_date" class="mono"></label>
+        <label class="field"><span class="field-label">Weight unit</span>
+          <select name="weight_unit"><option value="kg">kg</option><option value="lbs">lbs</option></select></label>
+        <label class="field"><span class="field-label">Monthly plan ($)</span><input type="number" name="plan_usd" class="num" step="1" min="0" placeholder="150"></label>
+        <label class="field"><span class="field-label">Billing day</span><input type="number" name="billing_day" class="num" min="1" max="28" value="1"></label>
+      </div>
+    </section>
 
-  <!-- STEP 2 — Program -->
-  <section class="wpanel" data-panel="2" hidden>
-    <h2 class="section-title">Step 2 — Program</h2>
-    <label class="field"><span class="field-label">Start from a saved program (optional)</span>
-      <select id="preset-select">
-        <option value="">— build custom —</option>
-        {% for p in programs %}
-        <option value="{{ p.id }}">{{ p.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
-
-    <h3 class="section-title">Weekly schedule</h3>
-    <div class="schedule-grid">
-      {% for day in days %}
-      <label class="field"><span class="field-label">{{ day }}</span>
-        <input type="text" name="schedule_{{ day }}" list="wt-list" value="Rest" placeholder="Rest">
+    <!-- STEP 2 — Program -->
+    <section class="wpanel" data-panel="2" hidden>
+      <div class="panel-title">Step 2 · Program</div>
+      <label class="field" style="max-width:360px"><span class="field-label">Start from a saved program</span>
+        <select id="preset-select">
+          <option value="">— build custom —</option>
+          {% for p in programs %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
       </label>
-      {% endfor %}
-    </div>
 
-    <h3 class="section-title">Exercises</h3>
-    <table class="data-table" id="ex-table">
-      <thead><tr><th>Type</th><th>Exercise</th><th>Sets</th><th>Reps</th><th>Coach notes</th><th>Tutorial URL</th><th></th></tr></thead>
-      <tbody id="ex-body"></tbody>
-    </table>
-    <button type="button" class="btn btn-small" onclick="addRow()">+ Add exercise</button>
-  </section>
+      <div class="cc-metric-label" style="margin:1rem 0 0.5rem">Weekly schedule</div>
+      <div class="sched-grid">
+        {% for day in days %}
+        <div>
+          <div class="cc-metric-label" style="margin-bottom:0.3rem">{{ day[:3] }}</div>
+          <input type="text" name="schedule_{{ day }}" list="wt-list" value="Rest" placeholder="Rest" style="text-align:center;font-weight:600">
+        </div>
+        {% endfor %}
+      </div>
 
-  <!-- STEP 3 — Week & RIR -->
-  <section class="wpanel" data-panel="3" hidden>
-    <h2 class="section-title">Step 3 — Week &amp; RIR</h2>
-    <label class="field"><span class="field-label">Number of weeks</span>
-      <input type="number" name="num_weeks" id="num-weeks" min="1" max="52" value="12" onchange="buildRir()"></label>
-    <table class="data-table"><thead><tr><th>Week</th><th>Target RIR</th></tr></thead>
-      <tbody id="rir-body"></tbody></table>
-  </section>
+      <div class="cc-metric-label" style="margin:1.2rem 0 0.5rem">Exercises</div>
+      <div style="overflow-x:auto">
+        <table class="table" id="ex-table" style="min-width:680px">
+          <thead><tr><th style="width:110px">Day / type</th><th>Exercise</th><th style="width:60px">Sets</th><th style="width:80px">Reps</th><th>Coach notes</th><th style="width:130px">Tutorial</th><th style="width:50px"></th></tr></thead>
+          <tbody id="ex-body"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-sm" style="margin-top:0.8rem" onclick="addRow()">{{ icon('plus', 14) }} Add exercise</button>
+    </section>
 
-  <!-- STEP 4 — Targets -->
-  <section class="wpanel" data-panel="4" hidden>
-    <h2 class="section-title">Step 4 — Nutrition Targets</h2>
-    <label class="field"><span class="field-label">Calories (kcal)</span><input type="number" name="calories" value="2000"></label>
-    <label class="field"><span class="field-label">Protein (g)</span><input type="number" name="protein" value="150"></label>
-    <label class="field"><span class="field-label">Carbs (g)</span><input type="number" name="carbs" value="200"></label>
-    <label class="field"><span class="field-label">Fat (g)</span><input type="number" name="fat" value="70"></label>
-    <label class="field"><span class="field-label">Fiber (g)</span><input type="number" name="fiber" value="30"></label>
-  </section>
+    <!-- STEP 3 — Week & RIR -->
+    <section class="wpanel" data-panel="3" hidden>
+      <div class="panel-title">Step 3 · Week &amp; RIR progression</div>
+      <label class="field" style="max-width:200px"><span class="field-label">Number of weeks</span>
+        <input type="number" name="num_weeks" id="num-weeks" class="num" min="1" max="52" value="12" onchange="buildRir()"></label>
+      <table class="table" style="max-width:360px"><thead><tr><th>Week</th><th>Target RIR</th></tr></thead>
+        <tbody id="rir-body"></tbody></table>
+    </section>
 
-  <!-- STEP 5 — Review -->
-  <section class="wpanel" data-panel="5" hidden>
-    <h2 class="section-title">Step 5 — Review</h2>
-    <div id="review-out" class="review-box">Fill the previous steps, then review here.</div>
-  </section>
+    <!-- STEP 4 — Targets -->
+    <section class="wpanel" data-panel="4" hidden>
+      <div class="panel-title">Step 4 · Nutrition targets</div>
+      <div class="field-row">
+        <label class="field"><span class="field-label">Calories (kcal)</span><input type="number" name="calories" class="num" value="2000"></label>
+        <label class="field"><span class="field-label">Protein (g)</span><input type="number" name="protein" class="num" value="150"></label>
+        <label class="field"><span class="field-label">Carbs (g)</span><input type="number" name="carbs" class="num" value="200"></label>
+        <label class="field"><span class="field-label">Fat (g)</span><input type="number" name="fat" class="num" value="70"></label>
+        <label class="field"><span class="field-label">Fiber (g)</span><input type="number" name="fiber" class="num" value="30"></label>
+      </div>
+    </section>
 
-  <!-- STEP 6 — Generate -->
-  <section class="wpanel" data-panel="6" hidden>
-    <h2 class="section-title">Step 6 — Generate</h2>
-    <p>Click below to create the client. The app writes your entries into the
-       master sheet, runs the generator, creates the client's Google Sheet
-       (shared with their email automatically), and adds them to the dashboard
-       — all in one step.</p>
-    <p class="field-hint">If one-click generation isn't set up yet, the app
-       falls back to letting you run <strong>Coach Tools → Generate Client
-       Template</strong> manually and paste the sheet URL.</p>
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Generate client &amp; add to dashboard</button>
-    </div>
-  </section>
+    <!-- STEP 5 — Review -->
+    <section class="wpanel" data-panel="5" hidden>
+      <div class="panel-title">Step 5 · Review</div>
+      <div id="review-out" class="review-box">Fill the previous steps, then review here.</div>
+    </section>
+
+    <!-- STEP 6 — Generate -->
+    <section class="wpanel" data-panel="6" hidden>
+      <div class="panel-title">Step 6 · Generate</div>
+      <p style="font-size:0.9rem;color:var(--text-2);line-height:1.6;max-width:560px">Click below to create the client. The app writes your entries into the
+        master sheet, runs the generator, creates the client's Google Sheet
+        (shared with their email automatically), and adds them to the dashboard — all in one step.</p>
+      <p class="field-hint" style="max-width:560px">If one-click generation isn't set up yet, the app falls back to letting you run
+        <strong>Coach Tools → Generate Client Template</strong> manually and paste the sheet URL.</p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ icon('sheet', 16) }} Generate client &amp; add to dashboard</button>
+      </div>
+    </section>
+  </div>
 
   <!-- Nav -->
-  <div class="form-actions wizard-nav">
-    <button type="button" class="btn" id="prev-btn" onclick="goStep(-1)">&#8592; Back</button>
-    <button type="button" class="btn btn-primary" id="next-btn" onclick="goStep(1)">Next &#8594;</button>
+  <div class="wizard-nav">
+    <button type="button" class="btn btn-ghost" id="prev-btn" onclick="goStep(-1)">{{ icon('arrowleft', 16) }} Back</button>
+    <button type="button" class="btn btn-primary" id="next-btn" onclick="goStep(1)">Next {{ icon('arrowright', 16) }}</button>
   </div>
 </form>
 
 {% if wrote_master %}
-<!-- Registration card appears after a successful master write -->
-<div class="form-card" id="register-card">
-  <h2 class="section-title">Register the generated client</h2>
-  <p>After generating the client sheet, paste its URL or ID below to add it to the dashboard.</p>
+<div class="panel" id="register-card" style="margin-top:1.2rem">
+  <div class="panel-title">Register the generated client</div>
+  <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">After generating the client sheet, paste its URL or ID below to add it to the dashboard.</p>
   <form method="post">
     <input type="hidden" name="action" value="register">
-    <label class="field"><span class="field-label">Client name</span>
-      <input type="text" name="reg_name" value="{{ form.get('name','') }}" required></label>
-    <label class="field"><span class="field-label">New sheet URL or ID</span>
-      <input type="text" name="reg_sheet" placeholder="https://docs.google.com/spreadsheets/d/..." required></label>
-    <label class="field"><span class="field-label">Monthly plan ($)</span>
-      <input type="number" name="reg_plan" value="{{ form.get('plan_usd','') }}"></label>
-    <label class="field"><span class="field-label">Weight unit</span>
-      <select name="reg_unit"><option value="kg">kg</option><option value="lbs">lbs</option></select></label>
+    <div class="field-row">
+      <label class="field"><span class="field-label">Client name</span><input type="text" name="reg_name" value="{{ form.get('name','') }}" required></label>
+      <label class="field"><span class="field-label">{{ icon('link', 14) }} New sheet URL or ID</span><input type="text" name="reg_sheet" class="mono" placeholder="https://docs.google.com/spreadsheets/d/..." required></label>
+    </div>
+    <div class="field-row">
+      <label class="field"><span class="field-label">Monthly plan ($)</span><input type="number" name="reg_plan" class="num" value="{{ form.get('plan_usd','') }}"></label>
+      <label class="field"><span class="field-label">Weight unit</span><select name="reg_unit"><option value="kg">kg</option><option value="lbs">lbs</option></select></label>
+    </div>
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary">I've generated it — register client</button>
+      <button type="submit" class="btn btn-primary">{{ icon('check', 16) }} I've generated it — register client</button>
     </div>
   </form>
 </div>
@@ -149,24 +156,22 @@
 <template id="ex-row-template">
   <tr>
     <td><input type="text" name="ex_type" list="wt-list" placeholder="day"></td>
-    <td><input type="text" name="ex_name"></td>
-    <td><input type="text" name="ex_sets" class="narrow"></td>
-    <td><input type="text" name="ex_reps" class="narrow"></td>
-    <td><input type="text" name="ex_notes"></td>
-    <td><input type="text" name="ex_url"></td>
-    <td><button type="button" class="btn btn-small btn-danger" onclick="removeRow(this)">&times;</button></td>
+    <td><input type="text" name="ex_name" placeholder="Exercise name"></td>
+    <td><input type="text" name="ex_sets" class="num" placeholder="2" style="text-align:center"></td>
+    <td><input type="text" name="ex_reps" class="num" placeholder="8,6" style="text-align:center"></td>
+    <td><input type="text" name="ex_notes" placeholder="cue / setup"></td>
+    <td><input type="text" name="ex_url" class="mono" placeholder="url"></td>
+    <td><button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeRow(this)">{{ icon('trash', 13) }}</button></td>
   </tr>
 </template>
+{% endblock %}
 
+{% block scripts %}
 <script>
 var step = 1, maxStep = 6;
 function showStep(n) {
-  document.querySelectorAll('.wpanel').forEach(function (p) {
-    p.hidden = (parseInt(p.dataset.panel) !== n);
-  });
-  document.querySelectorAll('.wstep').forEach(function (s) {
-    s.classList.toggle('active', parseInt(s.dataset.step) === n);
-  });
+  document.querySelectorAll('.wpanel').forEach(function (p) { p.hidden = (parseInt(p.dataset.panel) !== n); });
+  document.querySelectorAll('.wstep').forEach(function (s) { s.classList.toggle('active', parseInt(s.dataset.step) === n); });
   document.getElementById('prev-btn').style.visibility = n === 1 ? 'hidden' : 'visible';
   document.getElementById('next-btn').style.visibility = n === maxStep ? 'hidden' : 'visible';
   if (n === 5) renderReview();
@@ -188,33 +193,31 @@ function buildRir() {
   body.innerHTML = '';
   for (var i = 1; i <= n; i++) {
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + i + '</td><td><input type="text" name="rir_' + i +
-      '" value="2" class="narrow"></td>';
+    tr.innerHTML = '<td style="font-weight:600;color:var(--text)">Week ' + i + '</td>' +
+      '<td><input type="text" name="rir_' + i + '" value="2" class="num narrow"></td>';
     body.appendChild(tr);
   }
 }
 
 function renderReview() {
   var f = document.getElementById('wizard-form');
-  function v(name){ var el=f.elements[name]; return el ? el.value : ''; }
+  function v(name) { var el = f.elements[name]; return el ? el.value : ''; }
   var html = '<h3>Client</h3><ul>' +
-    '<li>Name: ' + v('name') + '</li>' +
-    '<li>Email: ' + v('email') + '</li>' +
-    '<li>Program: ' + v('program_name') + '</li>' +
-    '<li>Goal: ' + v('goal') + '</li>' +
-    '<li>Start: ' + v('start_date') + '</li>' +
+    '<li>Name: ' + (v('name') || '—') + '</li>' +
+    '<li>Email: ' + (v('email') || '—') + '</li>' +
+    '<li>Program: ' + (v('program_name') || '—') + '</li>' +
+    '<li>Goal: ' + (v('goal') || '—') + '</li>' +
+    '<li>Start: ' + (v('start_date') || '—') + '</li>' +
     '<li>Unit: ' + v('weight_unit') + '</li>' +
     '<li>Plan: $' + v('plan_usd') + ' / billing day ' + v('billing_day') + '</li></ul>';
   var ex = f.querySelectorAll('#ex-body tr').length;
   html += '<h3>Program</h3><p>' + ex + ' exercise(s)</p>';
   html += '<h3>Weeks</h3><p>' + v('num_weeks') + ' weeks</p>';
   html += '<h3>Targets</h3><ul><li>' + v('calories') + ' kcal</li><li>P ' +
-    v('protein') + ' / C ' + v('carbs') + ' / F ' + v('fat') + ' / Fiber ' +
-    v('fiber') + '</li></ul>';
+    v('protein') + ' / C ' + v('carbs') + ' / F ' + v('fat') + ' / Fiber ' + v('fiber') + '</li></ul>';
   document.getElementById('review-out').innerHTML = html;
 }
 
-// Load a saved program preset into the schedule + exercise table.
 document.getElementById('preset-select').addEventListener('change', function () {
   var id = this.value;
   if (!id) return;
