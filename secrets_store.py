@@ -1,57 +1,59 @@
 """
-Encrypted local store for sensitive per-client secrets (Cronometer logins).
+Encrypted store for sensitive per-client secrets (Cronometer logins).
 
-Passwords NEVER go in clients.yaml, the Google Sheet, the database, or git.
-They live only in `cronometer_creds.enc`, encrypted with a key in
-`cronometer.key`. Both files are gitignored and stay on the coach's machine.
+Passwords NEVER go in the client registry, the Google Sheet, or git in plain
+text. They are encrypted with Fernet (AES) and the ciphertext is kept in the
+shared database (app_kv table), so a single hosted instance has them too.
 
-This is symmetric encryption at rest (Fernet/AES). It protects the file if it's
-copied off the machine; it is not a substitute for OS-level account security.
+Key management:
+  * Production: set the Fernet key in the CRONOMETER_KEY environment variable
+    (generate one with `python -c "from cryptography.fernet import Fernet;
+    print(Fernet.generate_key().decode())"`). It is never stored in the DB.
+  * Local dev: if CRONOMETER_KEY is unset, a key is generated once and kept in
+    the DB (app_kv) so the encrypt/decrypt round-trips on this machine.
+
+This is encryption at rest. It protects the ciphertext if the DB is copied; it
+is not a substitute for account-level security.
 """
 import os
 import json
 
 from cryptography.fernet import Fernet
 
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-KEY_PATH = os.path.join(_BASE_DIR, "cronometer.key")
-STORE_PATH = os.path.join(_BASE_DIR, "cronometer_creds.enc")
+import db
+
+_KV_KEY_CREDS = "cronometer_creds"     # encrypted JSON blob of {name: {email,password}}
+_KV_KEY_FERNET = "cronometer_fernet_key"  # dev-only fallback key storage
 
 
-def _load_key() -> bytes:
-    """Return the Fernet key, creating it on first use (chmod 600)."""
-    if not os.path.exists(KEY_PATH):
-        key = Fernet.generate_key()
-        with open(KEY_PATH, "wb") as fh:
-            fh.write(key)
-        try:
-            os.chmod(KEY_PATH, 0o600)
-        except OSError:
-            pass  # Windows / unsupported FS — best effort.
-        return key
-    with open(KEY_PATH, "rb") as fh:
-        return fh.read()
+def _fernet() -> Fernet:
+    key = os.environ.get("CRONOMETER_KEY", "").strip()
+    if key:
+        return Fernet(key.encode())
+    # Dev fallback: persist a generated key in the DB so it survives restarts.
+    stored = db.kv_get(_KV_KEY_FERNET)
+    if not stored:
+        stored = Fernet.generate_key().decode()
+        db.kv_set(_KV_KEY_FERNET, stored)
+    return Fernet(stored.encode())
 
 
 def _read_all() -> dict:
-    if not os.path.exists(STORE_PATH):
-        return {}
-    with open(STORE_PATH, "rb") as fh:
-        blob = fh.read()
+    blob = db.kv_get(_KV_KEY_CREDS)
     if not blob:
         return {}
-    raw = Fernet(_load_key()).decrypt(blob)
-    return json.loads(raw.decode("utf-8"))
+    try:
+        raw = _fernet().decrypt(blob.encode())
+        return json.loads(raw.decode("utf-8"))
+    except Exception:
+        # A changed/rotated key can't decrypt old data — treat as empty rather
+        # than crash; the coach can re-enter the affected client's login.
+        return {}
 
 
 def _write_all(data: dict) -> None:
-    blob = Fernet(_load_key()).encrypt(json.dumps(data).encode("utf-8"))
-    with open(STORE_PATH, "wb") as fh:
-        fh.write(blob)
-    try:
-        os.chmod(STORE_PATH, 0o600)
-    except OSError:
-        pass
+    blob = _fernet().encrypt(json.dumps(data).encode("utf-8")).decode("ascii")
+    db.kv_set(_KV_KEY_CREDS, blob)
 
 
 def set_credentials(client_name: str, email: str, password: str) -> None:

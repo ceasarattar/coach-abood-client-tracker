@@ -6,16 +6,21 @@
 {% block content %}
 <div class="setup-wrap">
   <div class="panel" style="border-color:var(--amber-dim)">
-    <h1 class="page-title" style="font-size:1.3rem;color:var(--amber);margin-bottom:1rem">{{ icon('warn', 22) }} One-time setup required</h1>
+    <h1 class="page-title" style="font-size:1.3rem;color:var(--amber);margin-bottom:1rem">{{ icon('warn', 22) }} Google Sheets not connected yet</h1>
     <p style="color:var(--text-2);margin-bottom:1.5rem">
-      <code>credentials.json</code> is missing. Follow these steps once to connect to Google Sheets:
+      The server has no Google <strong>service account</strong> configured. Connect it once
+      (this replaces the old per-user login — it never expires):
     </p>
     <ol>
-      <li>Go to <strong>console.cloud.google.com</strong> → New Project → name it <em>coach-dashboard</em></li>
-      <li>APIs &amp; Services → Library → enable <strong>Google Sheets API</strong></li>
-      <li>OAuth consent screen → External → Testing<br>Add your Gmail as a Test User &amp; add scope <code>spreadsheets</code> (read + write)</li>
-      <li>Credentials → Create Credentials → <strong>OAuth client ID → Desktop app</strong><br>Download JSON → save as <code>credentials.json</code> in the project folder</li>
-      <li>Restart the server — a browser tab will open for Google sign-in</li>
+      <li>Go to <strong>console.cloud.google.com</strong> → your project → APIs &amp; Services
+        → Library → enable <strong>Google Sheets API</strong>.</li>
+      <li>IAM &amp; Admin → <strong>Service Accounts → Create service account</strong>.
+        Then <strong>Keys → Add key → JSON</strong> and download it.</li>
+      <li>Copy the service account's <strong>email</strong> and <strong>share the master
+        sheet and every client sheet</strong> with it (Editor).</li>
+      <li>Set the JSON as the <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> environment variable
+        on the host (or save it as <code>service_account.json</code> locally) and
+        set <code>MASTER_SHEET_ID</code>. Redeploy.</li>
     </ol>
     <p class="metric-sub" style="margin-top:1.5rem">
       Prefer click-by-click? Open the <a href="{{ url_for('guide') }}"><strong>Help &amp; Setup guide</strong></a>

@@ -1,0 +1,31 @@
+# Render Blueprint — deploys the dashboard as one free web service.
+# After connecting the repo in Render, fill the `sync: false` secrets in the
+# dashboard (Environment tab). See DEPLOY.md for the full walkthrough.
+services:
+  - type: web
+    name: coach-abood
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.6
+      - key: SECRET_KEY            # auto-generated strong session key
+        generateValue: true
+      - key: DATABASE_URL          # Neon Postgres connection string
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON   # paste the whole service-account JSON
+        sync: false
+      - key: MASTER_SHEET_ID       # the master spreadsheet id
+        sync: false
+      - key: APP_PASSCODE          # shared login passcode for you + Abood
+        sync: false
+      - key: CRONOMETER_KEY        # Fernet key for encrypting Cronometer logins
+        sync: false
+      - key: TEMPLATE_WEBAPP_URL   # optional: Apps Script generator /exec URL
+        sync: false
+      - key: TEMPLATE_WEBAPP_SECRET # optional: matching secret
+        sync: false

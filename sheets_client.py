@@ -11,12 +11,11 @@ Hard rules (project Section 6):
   * OAuth scope is read + write: spreadsheets (NOT spreadsheets.readonly).
 """
 import os
+import json
 import time
 import logging
 
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -25,9 +24,13 @@ logger = logging.getLogger(__name__)
 # Read + write scope (upgraded from spreadsheets.readonly).
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
-# Resolve credential/token paths relative to this file so the launch CWD
-# does not matter.
+# Service-account key: provided inline via an env var (production / Render) or
+# as a local file next to this module (dev). Resolved relative to this file so
+# the launch CWD does not matter.
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVICE_ACCOUNT_ENV = 'GOOGLE_SERVICE_ACCOUNT_JSON'
+SERVICE_ACCOUNT_FILE = os.path.join(_BASE_DIR, 'service_account.json')
+# Legacy paths — kept only so stray references don't break; no longer used.
 TOKEN_PATH = os.path.join(_BASE_DIR, 'token.json')
 CREDS_PATH = os.path.join(_BASE_DIR, 'credentials.json')
 
@@ -64,42 +67,73 @@ PAYMENTS_RANGE = 'Payments!A3:I'
 
 
 class ReauthRequired(Exception):
-    """Raised when stored credentials cannot be refreshed and need re-auth."""
+    """Kept for backward-compatibility. Service accounts never need re-auth."""
     pass
 
 
+class SheetsNotConfigured(FileNotFoundError):
+    """Raised when no service-account key is available (env var or file).
+
+    Subclasses FileNotFoundError so existing `except FileNotFoundError`
+    handlers keep showing the setup page.
+    """
+    pass
+
+
+def _service_account_info():
+    """Return the service-account dict from the env var or local file, or None."""
+    raw = os.environ.get(SERVICE_ACCOUNT_ENV, '').strip()
+    if raw:
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise SheetsNotConfigured(
+                f'{SERVICE_ACCOUNT_ENV} is set but is not valid JSON: {exc}') from exc
+    if os.path.exists(SERVICE_ACCOUNT_FILE):
+        with open(SERVICE_ACCOUNT_FILE, encoding='utf-8') as fh:
+            return json.load(fh)
+    return None
+
+
+def sheets_configured() -> bool:
+    """True if a service-account key is available (so Sheets calls can run)."""
+    try:
+        return _service_account_info() is not None
+    except SheetsNotConfigured:
+        return False
+
+
+def service_account_email() -> str:
+    """The service account's email (to share sheets with), or '' if unconfigured."""
+    try:
+        info = _service_account_info()
+    except SheetsNotConfigured:
+        info = None
+    return (info or {}).get('client_email', '')
+
+
+# Cache the built service so the key is not reparsed on every request.
+_service_cache = None
+
+
 def authenticate(force: bool = False):
-    """Return an authorized Sheets service. Runs browser OAuth if needed."""
-    creds = None
+    """Return an authorized Sheets service backed by the service account.
 
-    if not force and os.path.exists(TOKEN_PATH):
-        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
-
-    if not creds or not creds.valid:
-        if not force and creds and creds.expired and creds.refresh_token:
-            try:
-                creds.refresh(Request())
-                _save_token(creds)
-            except Exception as exc:
-                logger.warning('Token refresh failed: %s', exc)
-                raise ReauthRequired(str(exc)) from exc
-        else:
-            if not os.path.exists(CREDS_PATH):
-                raise FileNotFoundError(
-                    f'{CREDS_PATH} not found. '
-                    'Download it from Google Cloud Console (see README.md).'
-                )
-            flow = InstalledAppFlow.from_client_secrets_file(CREDS_PATH, SCOPES)
-            creds = flow.run_local_server(port=0)
-            _save_token(creds)
-
-    return build('sheets', 'v4', credentials=creds)
-
-
-def _save_token(creds: Credentials) -> None:
-    with open(TOKEN_PATH, 'w') as fh:
-        fh.write(creds.to_json())
-    logger.info('Token saved to %s', TOKEN_PATH)
+    Raises SheetsNotConfigured (a FileNotFoundError subclass) when no key is
+    available, so callers' existing FileNotFoundError handling still works.
+    """
+    global _service_cache
+    if _service_cache is not None and not force:
+        return _service_cache
+    info = _service_account_info()
+    if info is None:
+        raise SheetsNotConfigured(
+            'No Google service-account key found. Set the '
+            f'{SERVICE_ACCOUNT_ENV} env var or add service_account.json '
+            '(see DEPLOY.md).')
+    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+    _service_cache = build('sheets', 'v4', credentials=creds, cache_discovery=False)
+    return _service_cache
 
 
 def _batch_get(service, spreadsheet_id: str, ranges: list) -> dict:

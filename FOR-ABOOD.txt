@@ -1,0 +1,25 @@
+============================================================
+  COACH ABOOD DASHBOARD  —  HOW TO OPEN IT
+============================================================
+
+There is nothing to download or install. It lives online.
+
+  1. Open the link Ceasar sent you (save it as a bookmark).
+
+  2. Type the passcode Ceasar gave you. Done — you're in.
+
+------------------------------------------------------------
+WANT IT AS A DESKTOP APP (an icon, its own window)?
+
+  In Microsoft Edge or Google Chrome:
+    - Click the  ...  menu (top right)
+    - Apps  ->  Install this site as an app
+    - It gets its own icon and window, like a real program.
+
+  On a phone:  Share  ->  Add to Home Screen.
+
+------------------------------------------------------------
+That's all. You and Ceasar see the exact same dashboard and
+the same data, always. If anything looks wrong, tell Ceasar —
+he can see the same screen and fix it on his end.
+============================================================

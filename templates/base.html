@@ -15,6 +15,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;550;600;650;700;750;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <!-- PWA: installable as a desktop/phone app -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}" />
+  <meta name="theme-color" content="#15171d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Coach Abood" />
+  <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='icons/icon-512.png') }}" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}" />
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -41,8 +49,11 @@
       <a href="{{ url_for('guide') }}" class="nav-item {{ 'active' if nav == 'guide' }}">
         {{ icon('help', 18) }} Help &amp; Setup
       </a>
+      {% if app_gated %}
+      <a href="{{ url_for('logout') }}" class="nav-item">{{ icon('help', 18) }} Sign out</a>
+      {% endif %}
       <div class="nav-spacer"></div>
-      <div class="nav-foot"><span class="dot-live"></span> 127.0.0.1:5000 · Sheets sync</div>
+      <div class="nav-foot"><span class="dot-live"></span> live · shared · Sheets sync</div>
     </aside>
 
     <!-- ── Main ────────────────────────────────────────────────────────── -->
@@ -83,5 +94,14 @@
   {% endwith %}
 
   {% block scripts %}{% endblock %}
+
+  <!-- Register the service worker so the app is installable -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>

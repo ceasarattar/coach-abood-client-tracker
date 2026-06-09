@@ -1,7 +1,8 @@
 # Secrets — never commit
+service_account.json
+.env
 credentials.json
 token.json
-.env
 cronometer.key
 cronometer_creds.enc
 

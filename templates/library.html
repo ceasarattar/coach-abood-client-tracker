@@ -7,7 +7,7 @@
 <div class="page-head">
   <div>
     <h1 class="page-title">Workout Library</h1>
-    <p class="page-sub">{{ programs | length }} reusable program{{ 's' if programs | length != 1 }} · stored locally, never in a client sheet</p>
+    <p class="page-sub">{{ programs | length }} reusable program{{ 's' if programs | length != 1 }} · shared across the team, never in a client sheet</p>
   </div>
   {% if programs %}
   <a href="{{ url_for('library_new') }}" class="btn btn-primary">{{ icon('plus', 16) }} New program</a>
