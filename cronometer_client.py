@@ -125,6 +125,83 @@ def parse_servings_csv(text: str) -> dict:
     return {"headers": headers, "date_col": date_col, "rows": rows}
 
 
+def _fat_col(headers):
+    """The plain 'Fat (g)' column, not 'Saturated Fat (g)' etc."""
+    return (next((h for h in headers if h.lower().strip().startswith("fat")), None)
+            or _match_col(headers, "fat"))
+
+
+def structure_servings(parsed: dict) -> dict:
+    """
+    Shape parse_servings_csv() output into a Cronometer-style, per-day view:
+
+        {'days': [ {'date': 'dd/mm/yyyy',
+                    'totals': {'energy','protein','carbs','fat'},
+                    'foods': [ {'name','amount','energy','protein','carbs','fat',
+                                'details': [(nutrient, value), ...]} ] } ],
+         'count': <total food rows>}
+
+    Headline macros (food, amount, energy, protein, carbs, fat) are pulled out for
+    the summary row; every other non-empty nutrient column becomes an expandable
+    detail. Days come newest-first (parse_servings_csv already sorts the rows).
+    """
+    headers = parsed.get("headers", [])
+    rows = parsed.get("rows", [])
+    day_col = parsed.get("date_col")
+
+    food_col = _match_col(headers, "food", "name") or _match_col(headers, "food")
+    amount_col = _match_col(headers, "amount") or _match_col(headers, "quantity")
+    energy_col = (_match_col(headers, "energy", "kcal")
+                  or _match_col(headers, "energy") or _match_col(headers, "calorie"))
+    protein_col = _match_col(headers, "protein")
+    carbs_col = _match_col(headers, "carb")
+    fat_col = _fat_col(headers)
+
+    headline = {c for c in (day_col, food_col, amount_col, energy_col,
+                            protein_col, carbs_col, fat_col) if c}
+    detail_cols = [h for h in headers if h not in headline]
+
+    def fmt_date(raw):
+        iso = _norm_date(raw)
+        if not iso:
+            return str(raw or "").strip()
+        y, m, d = iso.split("-")
+        return f"{d}/{m}/{y}"
+
+    days, order = {}, []
+    for r in rows:
+        key = (r.get(day_col, "") or "").strip() if day_col else ""
+        if key not in days:
+            days[key] = {"date": fmt_date(key),
+                         "totals": {"energy": 0.0, "protein": 0.0,
+                                    "carbs": 0.0, "fat": 0.0},
+                         "foods": []}
+            order.append(key)
+        food = {
+            "name": (r.get(food_col, "") if food_col else "").strip() or "—",
+            "amount": (r.get(amount_col, "") if amount_col else "").strip(),
+            "energy": (r.get(energy_col, "") if energy_col else "").strip(),
+            "protein": (r.get(protein_col, "") if protein_col else "").strip(),
+            "carbs": (r.get(carbs_col, "") if carbs_col else "").strip(),
+            "fat": (r.get(fat_col, "") if fat_col else "").strip(),
+            "details": [(c, str(r.get(c, "")).strip()) for c in detail_cols
+                        if str(r.get(c, "")).strip() not in ("", "0")],
+        }
+        days[key]["foods"].append(food)
+        for k, col in (("energy", energy_col), ("protein", protein_col),
+                       ("carbs", carbs_col), ("fat", fat_col)):
+            v = _to_float(r.get(col)) if col else None
+            if v:
+                days[key]["totals"][k] += v
+
+    out_days = []
+    for key in order:
+        day = days[key]
+        day["totals"] = {k: round(v, 1) for k, v in day["totals"].items()}
+        out_days.append(day)
+    return {"days": out_days, "count": len(rows)}
+
+
 # --------------------------------------------------------------------------
 # Browser-driven fetch (Playwright) — needs validation with a real account
 # --------------------------------------------------------------------------

@@ -16,6 +16,7 @@ import sheets_client as sc
 import db
 import secrets_store
 import cronometer_api
+import cronometer_client
 import nutrition_sync
 
 # ---------------------------------------------------------------------------
@@ -1142,13 +1143,23 @@ def client_cronometer(name):
             except sc.ReauthRequired:
                 return redirect(url_for('reauth'))
             try:
-                days = _to_number(request.form.get('days'), 14) or 14
+                user_days = _to_number(request.form.get('days'), 14) or 14
+                # Align the pull window to the dates the Weight tab actually
+                # covers, so recent logged days line up with its fixed dated grid.
+                date_rows = nutrition_sync.weight_date_rows(
+                    service, client['spreadsheet_id'])
+                pull_days = nutrition_sync.days_to_cover(date_rows, int(user_days))
                 rows = cronometer_api.fetch_daily_nutrition(
-                    creds['email'], creds['password'], days=int(days))
+                    creds['email'], creds['password'], days=int(pull_days))
                 result = nutrition_sync.sync_to_sheet(
-                    service, client['spreadsheet_id'], rows)
-                flash(f"Synced {result['written']} day(s) of calories "
-                      f"({result['skipped']} skipped — no matching date row).", 'ok')
+                    service, client['spreadsheet_id'], rows, date_rows=date_rows)
+                msg = f"Synced {result['written']} day(s) of calories into the Weight tab."
+                if result['skipped']:
+                    span = (f", which covers {result['range_str']}"
+                            if result.get('range_str') else "")
+                    msg += (f" {result['skipped']} Cronometer day(s) had no matching "
+                            f"date row in the Weight tab{span}.")
+                flash(msg, 'ok' if result['written'] else 'error')
             except Exception as exc:
                 logger.error('Cronometer sync failed for %s: %s', name, exc,
                              exc_info=True)
@@ -1170,19 +1181,20 @@ def client_cronometer_foods(name):
 
     days = _to_number(request.args.get('days'), 7) or 7
     creds = secrets_store.get_credentials(name)
-    data, error = None, None
+    view, error = None, None
     if not creds:
         error = "Add this client's Cronometer login first (on the Cronometer page)."
     else:
         try:
-            data = cronometer_api.fetch_servings(
+            parsed = cronometer_api.fetch_servings(
                 creds['email'], creds['password'], days=int(days))
+            view = cronometer_client.structure_servings(parsed)
         except Exception as exc:
             logger.error('Cronometer foods fetch failed for %s: %s', name, exc,
                          exc_info=True)
             error = f'Could not load foods: {exc}'
 
-    return render_template('cronometer_foods.html', client=client, data=data,
+    return render_template('cronometer_foods.html', client=client, view=view,
                            error=error, days=int(days))
 
 

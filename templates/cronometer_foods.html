@@ -9,11 +9,46 @@
 {% endblock %}
 
 {% block content %}
+<style>
+  .cf-wrap { max-width: 880px; }
+  .cf-day { border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+            margin-bottom: 0.9rem; background: var(--surface); }
+  .cf-day > summary, .cf-food > summary { list-style: none; cursor: pointer; }
+  .cf-day > summary::-webkit-details-marker,
+  .cf-food > summary::-webkit-details-marker { display: none; }
+  .cf-day-sum { display: flex; align-items: center; gap: 0.7rem;
+                padding: 0.85rem 1rem; background: var(--surface-2); font-weight: 650; }
+  .cf-day-sum::before, .cf-food-sum::before { content: '▸'; color: var(--muted);
+                font-size: 0.8rem; transition: transform .15s; flex-shrink: 0; }
+  details[open] > .cf-day-sum::before, details[open] > .cf-food-sum::before { transform: rotate(90deg); }
+  .cf-date { color: var(--text); }
+  .cf-day-tot { margin-left: auto; color: var(--text-2); font-weight: 500; font-size: 0.85rem; }
+  .cf-day-tot b { color: var(--accent); font-family: var(--mono); }
+  .cf-count { color: var(--muted); margin-left: 0.5rem; }
+
+  .cf-food { border-top: 1px solid var(--border-soft); }
+  .cf-food-sum { display: grid; grid-template-columns: 1.5rem 1fr auto;
+                 align-items: center; gap: 0.6rem; padding: 0.6rem 1rem 0.6rem 1.3rem; }
+  .cf-name { color: var(--text); font-weight: 550; }
+  .cf-amt { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+  .cf-macs { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
+  .cf-mac { font-family: var(--mono); font-size: 0.74rem; padding: 0.12rem 0.45rem;
+            border-radius: 6px; background: var(--surface-3); color: var(--text-2); white-space: nowrap; }
+  .cf-mac.kcal { background: rgba(79,155,232,.16); color: var(--accent); }
+
+  .cf-detail { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+               gap: 0.3rem 1.2rem; padding: 0.4rem 1.3rem 1rem 2.9rem; }
+  .cf-dl { display: flex; justify-content: space-between; gap: 0.5rem;
+           border-bottom: 1px dashed var(--border-soft); padding: 0.25rem 0; font-size: 0.82rem; }
+  .cf-dl span { color: var(--muted); }
+  .cf-dl b { color: var(--text); font-family: var(--mono); font-weight: 500; }
+</style>
+
 <span class="back-link" onclick="location.href='{{ url_for('client_cronometer', name=client.name) }}'">{{ icon('arrowleft', 14) }} Cronometer</span>
 <div class="page-head">
   <div>
     <h1 class="page-title">{{ icon('flame', 22) }} Logged foods — {{ client.name }}</h1>
-    <p class="page-sub">Every food logged in Cronometer, with all of its nutrients (live pull).</p>
+    <p class="page-sub">Pulled live from Cronometer. Click a day to expand, then a food for its full nutrient breakdown.</p>
   </div>
   <form method="get" class="header-actions" style="display:flex;gap:0.5rem;align-items:flex-end">
     <label class="field" style="max-width:120px;margin:0">
@@ -26,23 +61,45 @@
 
 {% if error %}
 <div class="error-block error-block-lg">{{ icon('warn', 20, 'error-icon') }} <span>{{ error }}</span></div>
-{% elif data and data.rows %}
-<div class="panel" style="overflow:auto; max-height:74vh; padding:0">
-  <table class="table hover" style="white-space:nowrap; font-size:0.8rem">
-    <thead>
-      <tr>{% for h in data.headers %}<th>{{ h }}</th>{% endfor %}</tr>
-    </thead>
-    <tbody>
-      {% for row in data.rows %}
-      <tr>{% for h in data.headers %}<td class="num">{{ row[h] }}</td>{% endfor %}</tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% elif view and view.days %}
+<div class="cf-wrap">
+  {% for day in view.days %}
+  <details class="cf-day" {{ 'open' if loop.first }}>
+    <summary class="cf-day-sum">
+      <span class="cf-date">{{ day.date }}</span>
+      <span class="cf-day-tot">
+        <b>{{ day.totals.energy }}</b> kcal · P {{ day.totals.protein }} · C {{ day.totals.carbs }} · F {{ day.totals.fat }}
+        <span class="cf-count">{{ day.foods | length }} item{{ 's' if day.foods | length != 1 }}</span>
+      </span>
+    </summary>
+
+    {% for food in day.foods %}
+    <details class="cf-food">
+      <summary class="cf-food-sum">
+        <span></span>
+        <span class="cf-name">{{ food.name }}{% if food.amount %} <span class="cf-amt">· {{ food.amount }}</span>{% endif %}</span>
+        <span class="cf-macs">
+          {% if food.energy %}<span class="cf-mac kcal">{{ food.energy }} kcal</span>{% endif %}
+          {% if food.protein %}<span class="cf-mac">P {{ food.protein }}</span>{% endif %}
+          {% if food.carbs %}<span class="cf-mac">C {{ food.carbs }}</span>{% endif %}
+          {% if food.fat %}<span class="cf-mac">F {{ food.fat }}</span>{% endif %}
+        </span>
+      </summary>
+      {% if food.details %}
+      <div class="cf-detail">
+        {% for label, value in food.details %}
+        <div class="cf-dl"><span>{{ label }}</span><b>{{ value }}</b></div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="cf-detail"><p class="metric-sub">No extra nutrients recorded for this item.</p></div>
+      {% endif %}
+    </details>
+    {% endfor %}
+  </details>
+  {% endfor %}
+  <p class="metric-sub">{{ view.count }} food entries · last {{ days }} days · pulled live from Cronometer.</p>
 </div>
-<p class="metric-sub" style="margin-top:0.7rem">
-  {{ data.rows | length }} food entries · {{ data.headers | length }} columns ·
-  last {{ days }} days. Scroll sideways to see every nutrient.
-</p>
 {% else %}
 <p class="no-data">No foods were logged in Cronometer for the last {{ days }} days.</p>
 {% endif %}
