@@ -1,25 +1,76 @@
 ============================================================
-  COACH ABOOD DASHBOARD  —  HOW TO OPEN IT
+  COACH ABOOD DASHBOARD  —  HANDOFF
 ============================================================
 
-There is nothing to download or install. It lives online.
+There are two ways to use the dashboard. OPTION A is the easy
+one and what you'll use every day. OPTION B is only if you ever
+want it running on the gym computer itself.
 
-  1. Open the link Ceasar sent you (save it as a bookmark).
+============================================================
+  OPTION A  —  JUST OPEN THE LINK  (recommended)
+============================================================
 
-  2. Type the passcode Ceasar gave you. Done — you're in.
+Nothing to download. Nothing to install. It lives online.
 
-------------------------------------------------------------
-WANT IT AS A DESKTOP APP (an icon, its own window)?
+  1. Open the link Ceasar sent you.
+     (Save it as a bookmark so it's one click next time.)
 
-  In Microsoft Edge or Google Chrome:
-    - Click the  ...  menu (top right)
-    - Apps  ->  Install this site as an app
-    - It gets its own icon and window, like a real program.
+  2. Type the passcode Ceasar gave you. You're in.
 
-  On a phone:  Share  ->  Add to Home Screen.
+  MAKE IT A DESKTOP APP (an icon + its own window):
+     - In Microsoft Edge or Chrome, click the  •••  menu (top right)
+     - Apps  ->  Install this site as an app
+     - You now have an icon, just like a normal program.
+     - On a phone:  Share  ->  Add to Home Screen.
 
-------------------------------------------------------------
-That's all. You and Ceasar see the exact same dashboard and
-the same data, always. If anything looks wrong, tell Ceasar —
-he can see the same screen and fix it on his end.
+  You and Ceasar see the EXACT same data, always. If anything
+  looks wrong, tell Ceasar — he sees the same screen and can fix
+  it from his side.
+
+============================================================
+  OPTION B  —  RUN IT ON THE GYM COMPUTER  (optional, advanced)
+============================================================
+
+Only do this if you want a copy running on this PC. It connects
+to the same shared data as Option A. Ceasar will send you TWO
+files first:  service_account.json  and  .env
+
+  FIRST-TIME SETUP
+  ----------------
+  1. Install Python:  https://www.python.org/downloads/
+     IMPORTANT: on the first screen tick "Add python.exe to PATH".
+
+  2. Open "Command Prompt" and paste these one line at a time:
+
+        cd %USERPROFILE%\Desktop
+        git clone https://github.com/ceasarattar/coach-abood-client-tracker.git
+
+  3. Put the two files from Ceasar  (service_account.json  and  .env)
+     INTO the new folder:
+        %USERPROFILE%\Desktop\coach-abood-client-tracker
+
+  4. Finish setup and start it:
+
+        cd coach-abood-client-tracker
+        setup.bat
+
+     From then on, start the app any time with:
+
+        python run.py
+
+     (Your browser opens at  http://127.0.0.1:5000 )
+
+  TO GET CEASAR'S LATEST CHANGES LATER
+  ------------------------------------
+  Open Command Prompt and paste:
+
+        cd %USERPROFILE%\Desktop\coach-abood-client-tracker
+        git pull
+        venv\Scripts\activate
+        pip install -r requirements.txt
+        python run.py
+
+============================================================
+Questions? Send Ceasar a message — he can see everything you
+see and fix it on his end.
 ============================================================
