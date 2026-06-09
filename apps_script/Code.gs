@@ -133,6 +133,7 @@ function readConfig() {
   const schedVals   = pb.getRange('B5:C11').getValues();
   const exVals      = pb.getRange('A15:F300').getValues();
   const targetVals  = ss.getSheetByName(T_TARGETS).getRange('B2:B6').getValues();
+  const sleepTargetVal = ss.getSheetByName(T_TARGETS).getRange('B7').getValue();
 
   const info = infoVals.map(r => r[0]);
   const cfg  = {
@@ -174,8 +175,9 @@ function readConfig() {
         link:  String(r[5]).trim()
       });
     });
-  cfg.exByType  = exByType;
-  cfg.targets   = targetVals.map(r => r[0]);
+  cfg.exByType    = exByType;
+  cfg.targets     = targetVals.map(r => r[0]);
+  cfg.sleepTarget = String(sleepTargetVal || '').trim();
   return cfg;
 }
 
@@ -235,14 +237,15 @@ function buildWeightTab(dest, cfg) {
   const sh      = dest.insertSheet('Weight');
   const n       = 140;
   const lastRow = n + 1;
-  const lastCol = 11;
+  const lastCol = 12;
 
   sh.setHiddenGridlines(true);
 
+  const sleepHead = cfg.sleepTarget ? 'Sleep (hrs) · goal ' + cfg.sleepTarget : 'Sleep (hrs)';
   sh.getRange(1, 1, 1, lastCol)
     .setValues([[
       'Date', 'Weight (' + cfg.unit + ')', 'Day Δ', '7-Day Avg', 'Weekly Avg',
-      'Week #', 'Notes', 'Steps', 'Total Steps', 'Calories', 'Total Calories'
+      'Week #', 'Notes', 'Steps', 'Total Steps', 'Calories', 'Total Calories', sleepHead
     ]])
     .setFontWeight('bold').setFontColor(WHITE)
     .setBackground(NAVY).setHorizontalAlignment('center');
@@ -280,8 +283,9 @@ function buildWeightTab(dest, cfg) {
   sh.getRange(2, 7, n, 1).setBackground(INPUT);
   sh.getRange(2, 8, n, 1).setBackground(INPUT);
   sh.getRange(2, 10, n, 1).setBackground(INPUT);
+  sh.getRange(2, 12, n, 1).setBackground(INPUT);   // Sleep (hrs) input column
 
-  [110, 100, 80, 110, 110, 80, 200, 90, 110, 90, 120]
+  [110, 100, 80, 110, 110, 80, 200, 90, 110, 90, 120, 100]
     .forEach((w, i) => sh.setColumnWidth(i + 1, w));
 
   sh.setFrozenRows(1);
@@ -293,6 +297,12 @@ function buildWeightTab(dest, cfg) {
     SpreadsheetApp.newDataValidation()
       .requireNumberBetween(20, 300).setAllowInvalid(false)
       .setHelpText('Enter weight in ' + cfg.unit + ' (20–300).').build()
+  );
+
+  sh.getRange(2, 12, n, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireNumberBetween(0, 24).setAllowInvalid(false)
+      .setHelpText('Hours of sleep (0–24).').build()
   );
 }
 

@@ -457,6 +457,7 @@ def build_detail(client: dict, data: dict, payment_rows: list,
     weight_values = _parse_floats(_col(data.get('WeightValues', [])))
     weight_ma7 = _parse_floats(_col(data.get('WeightMA7', [])))
     daily_calories = _parse_floats(_col(data.get('WeightCalories', [])))
+    sleep_values = _parse_floats(_col(data.get('WeightSleep', [])))
 
     record = _payment_for(client['name'], payment_rows)
     pay_display, pay_class, is_overdue = _payment_display(record)
@@ -479,14 +480,21 @@ def build_detail(client: dict, data: dict, payment_rows: list,
         key=lambda x: x[0],
     )
 
+    # Sleep (hours), dated by the same Weight!A column. Average the last 7 logged.
+    sleep_by_date = {d: s for d, s in zip(weight_dates, sleep_values)
+                     if d is not None and s is not None}
+    recent_sleep = [s for _, s in sorted(sleep_by_date.items())][-7:]
+    avg_sleep = round(sum(recent_sleep) / len(recent_sleep), 1) if recent_sleep else None
+
     all_weight = sorted(
         [(d, v) for d, v in zip(weight_dates, weight_values)
          if d is not None and v is not None],
         key=lambda x: x[0],
     )
     # Human-facing table → day-first dd/mm/yyyy (chart arrays below stay ISO so
-    # Plotly treats them as real dates).
-    weight_table = [(d.strftime('%d/%m/%Y'), round(v, 1)) for d, v in all_weight[-14:]]
+    # Plotly treats them as real dates). Third element is sleep for that date.
+    weight_table = [(d.strftime('%d/%m/%Y'), round(v, 1), sleep_by_date.get(d))
+                    for d, v in all_weight[-14:]]
 
     return {
         'name': client['name'],
@@ -505,6 +513,7 @@ def build_detail(client: dict, data: dict, payment_rows: list,
         'cal_dates': [str(d) for d, c in cal30],
         'cal_values': [c for d, c in cal30],
         'weight_table': weight_table,
+        'avg_sleep': avg_sleep,
         'error': None,
     }
 
@@ -794,6 +803,11 @@ def _client_setup_updates(data: dict) -> list:
     updates.append({'range': "'⚙ Targets'!B2:B6", 'values': [
         [t['calories']], [t['protein']], [t['carbs']], [t['fat']], [t['fiber']],
     ]})
+
+    # Sleep target (hours) — a labelled row in the admin Targets tab, so it shows
+    # in the master sheet and flows into the generated sheet's Sleep column header.
+    updates.append({'range': "'⚙ Targets'!A7:B7",
+                    'values': [['Sleep (hrs)', data.get('sleep_target', '')]]})
     return updates
 
 
@@ -825,7 +839,8 @@ def _parse_wizard_form(form) -> dict:
         'fiber': (form.get('fiber') or '').strip(),
     }
     return {'info': info, 'schedule': prog['schedule'],
-            'exercises': prog['exercises'], 'weeks': weeks, 'targets': targets}
+            'exercises': prog['exercises'], 'weeks': weeks, 'targets': targets,
+            'sleep_target': (form.get('sleep_target') or '').strip()}
 
 
 @app.route('/clients/new', methods=['GET', 'POST'])
@@ -1033,6 +1048,27 @@ def client_log(name):
                         logger.error('Weight write failed: %s', exc)
                         flash(f'Weight write failed: {exc}', 'error')
 
+        elif kind == 'sleep':
+            raw_date = (request.form.get('date') or '').strip()
+            hours = (request.form.get('sleep') or '').strip()
+            parsed = _parse_dates([raw_date])[0]
+            if not parsed or not hours:
+                flash('A valid date and sleep hours are required.', 'error')
+            else:
+                row = _weight_row_for_date(service, client['spreadsheet_id'], parsed)
+                if row is None:
+                    flash(f'No row for {raw_date} exists in the Weight tab.', 'error')
+                else:
+                    try:
+                        sc.batch_update_values(
+                            service, client['spreadsheet_id'],
+                            [{'range': f'Weight!L{row}',
+                              'values': [[_to_number(hours, hours)]]}])
+                        flash(f'Logged {hours} h sleep for {raw_date}.', 'ok')
+                    except Exception as exc:
+                        logger.error('Sleep write failed: %s', exc)
+                        flash(f'Sleep write failed: {exc}', 'error')
+
         elif kind == 'payment':
             paid_date = (request.form.get('paid_date') or '').strip()
             parsed = _parse_dates([paid_date])[0]
@@ -1122,6 +1158,32 @@ def client_cronometer(name):
 
     return render_template('client_cronometer.html', client=client,
                            has_creds=secrets_store.has_credentials(name))
+
+
+@app.route('/client/<path:name>/cronometer/foods')
+def client_cronometer_foods(name):
+    """Pull the full per-food Cronometer log (foods + all nutrients) and show it."""
+    name = unquote(name)
+    client = next((c for c in _load_clients() if c['name'] == name), None)
+    if client is None:
+        abort(404)
+
+    days = _to_number(request.args.get('days'), 7) or 7
+    creds = secrets_store.get_credentials(name)
+    data, error = None, None
+    if not creds:
+        error = "Add this client's Cronometer login first (on the Cronometer page)."
+    else:
+        try:
+            data = cronometer_api.fetch_servings(
+                creds['email'], creds['password'], days=int(days))
+        except Exception as exc:
+            logger.error('Cronometer foods fetch failed for %s: %s', name, exc,
+                         exc_info=True)
+            error = f'Could not load foods: {exc}'
+
+    return render_template('cronometer_foods.html', client=client, data=data,
+                           error=error, days=int(days))
 
 
 if __name__ == '__main__':

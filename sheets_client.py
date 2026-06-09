@@ -61,6 +61,10 @@ NAMED_RANGE_A1_FALLBACK = {
 # populate. Read by A1 (no named range).
 WEIGHT_CALORIES_RANGE = 'Weight!J2:J'
 
+# Sleep (hours) lives on the Weight tab (col L, dated by col A). Read by A1 so it
+# degrades to empty on older client sheets that don't have the column yet.
+WEIGHT_SLEEP_RANGE = 'Weight!L2:L'
+
 # Master sheet Payments tab. Header is on row 2, data from row 3. No named
 # range exists on the master sheet, so this is read by A1.
 PAYMENTS_RANGE = 'Payments!A3:I'
@@ -171,7 +175,7 @@ def fetch_client_data(service, spreadsheet_id: str) -> dict:
     Missing named ranges degrade gracefully via an A1 fallback so one absent
     range cannot blank out the whole page.
     """
-    ranges = list(CLIENT_NAMED_RANGES) + [WEIGHT_CALORIES_RANGE]
+    ranges = list(CLIENT_NAMED_RANGES) + [WEIGHT_CALORIES_RANGE, WEIGHT_SLEEP_RANGE]
     try:
         raw = _batch_get(service, spreadsheet_id, ranges)
         vrs = raw.get('valueRanges', [])
@@ -181,6 +185,7 @@ def fetch_client_data(service, spreadsheet_id: str) -> dict:
         }
         idx = len(CLIENT_NAMED_RANGES)
         data['WeightCalories'] = vrs[idx].get('values', []) if idx < len(vrs) else []
+        data['WeightSleep'] = vrs[idx + 1].get('values', []) if idx + 1 < len(vrs) else []
         return data
     except HttpError as exc:
         logger.warning(
@@ -198,6 +203,9 @@ def _fetch_client_data_individually(service, spreadsheet_id: str) -> dict:
                                NAMED_RANGE_A1_FALLBACK.get(name))
     data['WeightCalories'] = _safe_get(
         service, spreadsheet_id, WEIGHT_CALORIES_RANGE, None
+    )
+    data['WeightSleep'] = _safe_get(
+        service, spreadsheet_id, WEIGHT_SLEEP_RANGE, None
     )
     return data
 

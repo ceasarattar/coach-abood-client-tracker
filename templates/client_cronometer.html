@@ -21,7 +21,7 @@
     <div class="panel-title">Credentials
       {% if has_creds %}<span class="badge green">saved</span>{% else %}<span class="badge gray">not set</span>{% endif %}
     </div>
-    <p class="field-hint" style="margin-bottom:1rem">Stored <strong>encrypted on this computer only</strong> — never in the sheet, the database, or GitHub.</p>
+    <p class="field-hint" style="margin-bottom:1rem">Coach Abood enters the client's Cronometer email + password here; it is stored <strong>encrypted in the shared database</strong> — never in plain text in the sheet or GitHub.</p>
     <form method="post">
       <input type="hidden" name="action" value="save">
       <label class="field"><span class="field-label">Cronometer email</span>
@@ -36,7 +36,13 @@
 
   {% if has_creds %}
   <div class="panel">
-    <div class="panel-title">Sync now</div>
+    <div class="panel-title">View logged foods</div>
+    <p class="field-hint" style="margin-bottom:1rem">Pull everything the client logged in Cronometer — every food with all its macros and micronutrients — and view it on the dashboard.</p>
+    <a href="{{ url_for('client_cronometer_foods', name=client.name) }}" class="btn">{{ icon('flame', 16) }} View foods &amp; nutrients</a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Sync calories to sheet</div>
     <p class="field-hint" style="margin-bottom:1rem">Logs into Cronometer in the background, exports the recent daily nutrition, and writes calories into the Weight tab by date.</p>
     <form method="post">
       <input type="hidden" name="action" value="sync">

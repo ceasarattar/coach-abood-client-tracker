@@ -55,6 +55,11 @@
     <div class="stat-value">{% if avg_cal is not none %}{{ '{:,}'.format(avg_cal | round | int) }}{% else %}—{% endif %}</div>
     <div class="stat-sub">last 30 days</div>
   </div>
+  <div class="panel stat">
+    <div class="stat-label">{{ icon('clock', 14) }} Avg sleep</div>
+    <div class="stat-value">{% if d.avg_sleep is not none %}{{ d.avg_sleep }} h{% else %}—{% endif %}</div>
+    <div class="stat-sub">last 7 nights</div>
+  </div>
 </div>
 
 <!-- ── Charts + side panels ────────────────────────────────────────────── -->
@@ -131,14 +136,14 @@
   </div>
 
   <div class="panel">
-    <div class="panel-title">Last 14 weight entries</div>
+    <div class="panel-title">Last 14 entries</div>
     {% if d.weight_table %}
     <div style="max-height:320px;overflow-y:auto">
       <table class="table hover">
-        <thead><tr><th>Date</th><th style="text-align:right">Weight ({{ d.weight_unit }})</th></tr></thead>
+        <thead><tr><th>Date</th><th style="text-align:right">Weight ({{ d.weight_unit }})</th><th style="text-align:right">Sleep (h)</th></tr></thead>
         <tbody>
-          {% for row_date, row_val in d.weight_table | reverse %}
-          <tr><td class="num">{{ row_date }}</td><td class="num" style="text-align:right;color:var(--text)">{{ row_val }}</td></tr>
+          {% for row_date, row_val, row_sleep in d.weight_table | reverse %}
+          <tr><td class="num">{{ row_date }}</td><td class="num" style="text-align:right;color:var(--text)">{{ row_val }}</td><td class="num" style="text-align:right">{{ row_sleep if row_sleep is not none else '—' }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
