@@ -28,12 +28,18 @@
 
 // CHANGE THIS to a long random string, and set the SAME value as the
 // TEMPLATE_WEBAPP_SECRET environment variable on the dashboard host (Render).
-const WEBAPP_SECRET = 'CHANGE_ME_to_a_long_random_secret';
+const WEBAPP_SECRET = '';
 
 // The dashboard's Google service-account email. Every generated client sheet is
 // auto-shared with it so the hosted dashboard can read the new sheet. Find it in
 // your service-account JSON as "client_email". Leave '' to share manually.
 const SERVICE_ACCOUNT_EMAIL = '';
+
+// Email the client a "your sheet is ready" message (with the link) when their
+// sheet is generated. Set to false to share silently. The email is sent from the
+// master-sheet owner's Google account.
+const NOTIFY_CLIENT = true;
+const COACH_NAME = 'Coach Abood';
 
 const T_INFO    = '⚙ Client Info';
 const T_PROGRAM = '⚙ Program Builder';
@@ -209,10 +215,34 @@ function generateFromConfig_(cfg) {
 
   let sharedWith = '';
   if (cfg.email) {
-    try { dest.addEditor(cfg.email); sharedWith = cfg.email; }
+    try {
+      dest.addEditor(cfg.email);
+      sharedWith = cfg.email;
+      if (NOTIFY_CLIENT) notifyClient_(cfg, dest);
+    }
     catch (e) { sharedWith = 'ERROR: ' + e.message; }
   }
   return { dest: dest, fileName: fname, sharedWith: sharedWith };
+}
+
+// ---- Notify the client their sheet is ready (email + link) ----
+function notifyClient_(cfg, dest) {
+  try {
+    MailApp.sendEmail({
+      to: cfg.email,
+      subject: 'Your ' + COACH_NAME + ' training sheet is ready',
+      htmlBody:
+        '<p>Hi ' + (cfg.name || 'there') + ',</p>' +
+        '<p>Your personal training &amp; nutrition tracker is ready. Open it here:</p>' +
+        '<p><a href="' + dest.getUrl() + '">' + dest.getName() + '</a></p>' +
+        '<p>Use it to log your weight, sleep, workouts and daily nutrition. ' +
+        'Message me anytime with questions.</p>' +
+        '<p>— ' + COACH_NAME + '</p>'
+    });
+  } catch (e) {
+    // Non-fatal: the client still has access even if the email could not be sent
+    // (e.g. the daily mail quota was reached). Generation must not fail on this.
+  }
 }
 
 // ---- Main (menu-driven, with UI alerts) ----
