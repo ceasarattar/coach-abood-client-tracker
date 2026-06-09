@@ -5,12 +5,11 @@ import logging
 import logging.handlers
 import urllib.request
 import urllib.error
-import yaml
 from datetime import date, datetime, timedelta
 from urllib.parse import unquote, urlparse
 
 from flask import (Flask, render_template, redirect, url_for, jsonify, abort,
-                   request, flash)
+                   request, flash, session)
 from googleapiclient.errors import HttpError
 
 import sheets_client as sc
@@ -20,21 +19,45 @@ import cronometer_api
 import nutrition_sync
 
 # ---------------------------------------------------------------------------
-# Paths + app + logging
+# Paths + config + app + logging
 # ---------------------------------------------------------------------------
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CLIENTS_FILE = os.path.join(BASE_DIR, 'clients.yaml')
+CLIENTS_FILE = os.path.join(BASE_DIR, 'clients.yaml')   # legacy — imported on first boot
 ENV_FILE = os.path.join(BASE_DIR, '.env')
 
-app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET', 'coach-abood-local-secret')
 
-# Ensure the local workout-library DB exists (idempotent).
+def _load_dotenv_into_environ() -> None:
+    """Load .env into os.environ for local dev. Does NOT override variables that
+    are already set, so a hosting platform's real env vars always win."""
+    if not os.path.exists(ENV_FILE):
+        return
+    with open(ENV_FILE) as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, _, val = line.partition('=')
+            os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+
+
+_load_dotenv_into_environ()
+
+app = Flask(__name__)
+app.secret_key = (os.environ.get('SECRET_KEY')
+                  or os.environ.get('FLASK_SECRET')
+                  or 'coach-abood-local-dev-secret')
+
+# Shared passcode that gates the whole app once it is hosted publicly.
+# If unset (local dev), the gate is disabled so nothing blocks development.
+APP_PASSCODE = os.environ.get('APP_PASSCODE', '').strip()
+
+# Create tables, seed the workout library, and import any legacy clients.yaml.
+# Safe to run on every process start (each step is guarded).
 try:
-    db.init_db()
+    db.bootstrap()
 except Exception:
-    pass
+    logging.getLogger(__name__).exception('db.bootstrap() failed at startup')
 
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 _fh = logging.handlers.RotatingFileHandler(
@@ -44,6 +67,57 @@ _fh = logging.handlers.RotatingFileHandler(
 _fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s'))
 logging.basicConfig(level=logging.INFO, handlers=[_fh])
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Access gate — a shared passcode protects the app once it is public (Render).
+# Disabled automatically when APP_PASSCODE is unset (local development).
+# ---------------------------------------------------------------------------
+
+_PUBLIC_ENDPOINTS = {'login', 'logout', 'health', 'static', 'service_worker'}
+
+
+@app.before_request
+def _require_login():
+    if not APP_PASSCODE:
+        return  # gate disabled (local dev)
+    if request.endpoint in _PUBLIC_ENDPOINTS or session.get('authed'):
+        return
+    return redirect(url_for('login', next=request.path))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if not APP_PASSCODE or session.get('authed'):
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        if (request.form.get('passcode') or '').strip() == APP_PASSCODE:
+            session['authed'] = True
+            session.permanent = True
+            return redirect(request.args.get('next') or url_for('index'))
+        flash('Incorrect passcode.', 'error')
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
+@app.context_processor
+def _inject_globals():
+    """Expose whether the passcode gate is active (controls the Sign-out link)."""
+    return {'app_gated': bool(APP_PASSCODE)}
+
+
+@app.route('/sw.js')
+def service_worker():
+    """Serve the service worker from the site root so its scope is the whole app."""
+    resp = app.send_static_file('sw.js')
+    resp.headers['Service-Worker-Allowed'] = '/'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
 
 # Master Payments tab columns (verified layout — header row 2, data row 3+).
 PAYMENT_COLUMNS = [
@@ -125,17 +199,8 @@ def trigger_template_generation(timeout: int = 120) -> dict:
 
 
 def _load_clients() -> list:
-    if not os.path.exists(CLIENTS_FILE):
-        return []
-    with open(CLIENTS_FILE) as fh:
-        return (yaml.safe_load(fh) or {}).get('clients', [])
-
-
-def _save_clients(clients: list) -> None:
-    """Persist the client registry back to clients.yaml, preserving the header."""
-    with open(CLIENTS_FILE, 'w') as fh:
-        yaml.safe_dump({'clients': clients}, fh, sort_keys=False,
-                       allow_unicode=True, default_flow_style=False)
+    """The client registry now lives in the shared database (was clients.yaml)."""
+    return db.list_clients()
 
 
 def extract_sheet_id(value: str) -> str:
@@ -392,6 +457,7 @@ def build_detail(client: dict, data: dict, payment_rows: list,
     weight_values = _parse_floats(_col(data.get('WeightValues', [])))
     weight_ma7 = _parse_floats(_col(data.get('WeightMA7', [])))
     daily_calories = _parse_floats(_col(data.get('WeightCalories', [])))
+    sleep_values = _parse_floats(_col(data.get('WeightSleep', [])))
 
     record = _payment_for(client['name'], payment_rows)
     pay_display, pay_class, is_overdue = _payment_display(record)
@@ -414,14 +480,21 @@ def build_detail(client: dict, data: dict, payment_rows: list,
         key=lambda x: x[0],
     )
 
+    # Sleep (hours), dated by the same Weight!A column. Average the last 7 logged.
+    sleep_by_date = {d: s for d, s in zip(weight_dates, sleep_values)
+                     if d is not None and s is not None}
+    recent_sleep = [s for _, s in sorted(sleep_by_date.items())][-7:]
+    avg_sleep = round(sum(recent_sleep) / len(recent_sleep), 1) if recent_sleep else None
+
     all_weight = sorted(
         [(d, v) for d, v in zip(weight_dates, weight_values)
          if d is not None and v is not None],
         key=lambda x: x[0],
     )
     # Human-facing table → day-first dd/mm/yyyy (chart arrays below stay ISO so
-    # Plotly treats them as real dates).
-    weight_table = [(d.strftime('%d/%m/%Y'), round(v, 1)) for d, v in all_weight[-14:]]
+    # Plotly treats them as real dates). Third element is sleep for that date.
+    weight_table = [(d.strftime('%d/%m/%Y'), round(v, 1), sleep_by_date.get(d))
+                    for d, v in all_weight[-14:]]
 
     return {
         'name': client['name'],
@@ -440,6 +513,7 @@ def build_detail(client: dict, data: dict, payment_rows: list,
         'cal_dates': [str(d) for d, c in cal30],
         'cal_values': [c for d, c in cal30],
         'weight_table': weight_table,
+        'avg_sleep': avg_sleep,
         'error': None,
     }
 
@@ -543,38 +617,17 @@ def health():
 
 def _setup_status() -> dict:
     """Snapshot of setup readiness, shown on the /guide page. No network calls."""
-    env = load_env()
-    master = env.get('MASTER_SHEET_ID',
-                     os.environ.get('MASTER_SHEET_ID', '')).strip()
+    master = master_sheet_id()
     webapp_url, webapp_secret = _webapp_config()
-    creds_ok = os.path.exists(sc.CREDS_PATH)
-    token_ok = os.path.exists(sc.TOKEN_PATH)
-
-    # Best-effort token expiry read (no network): the stored JSON has 'expiry'.
-    token_state = 'missing'
-    if token_ok:
-        token_state = 'present'
-        try:
-            with open(sc.TOKEN_PATH) as fh:
-                tok = json.load(fh)
-            exp = tok.get('expiry', '')
-            if exp:
-                # stored as e.g. 2026-06-08T12:00:00Z or with microseconds
-                exp_dt = datetime.strptime(exp.replace('Z', '')[:19],
-                                           '%Y-%m-%dT%H:%M:%S')
-                token_state = 'expired' if exp_dt < datetime.utcnow() else 'valid'
-        except Exception:  # noqa: BLE001 — presence already recorded
-            pass
-
+    sheets_ok = sc.sheets_configured()
     return {
-        'credentials': creds_ok,
-        'token': token_ok,
-        'token_state': token_state,
+        'sheets': sheets_ok,
+        'sa_email': sc.service_account_email(),
         'master': bool(master),
         'master_tail': ('…' + master[-6:]) if master else '',
         'webapp': bool(webapp_url and webapp_secret),
         'client_count': len(_load_clients()),
-        'ready': creds_ok and bool(master),
+        'ready': sheets_ok and bool(master),
     }
 
 
@@ -750,6 +803,11 @@ def _client_setup_updates(data: dict) -> list:
     updates.append({'range': "'⚙ Targets'!B2:B6", 'values': [
         [t['calories']], [t['protein']], [t['carbs']], [t['fat']], [t['fiber']],
     ]})
+
+    # Sleep target (hours) — a labelled row in the admin Targets tab, so it shows
+    # in the master sheet and flows into the generated sheet's Sleep column header.
+    updates.append({'range': "'⚙ Targets'!A7:B7",
+                    'values': [['Sleep (hrs)', data.get('sleep_target', '')]]})
     return updates
 
 
@@ -781,7 +839,8 @@ def _parse_wizard_form(form) -> dict:
         'fiber': (form.get('fiber') or '').strip(),
     }
     return {'info': info, 'schedule': prog['schedule'],
-            'exercises': prog['exercises'], 'weeks': weeks, 'targets': targets}
+            'exercises': prog['exercises'], 'weeks': weeks, 'targets': targets,
+            'sleep_target': (form.get('sleep_target') or '').strip()}
 
 
 @app.route('/clients/new', methods=['GET', 'POST'])
@@ -817,10 +876,8 @@ def clients_new():
                 new_id = extract_sheet_id(result.get('url', ''))
                 if not new_id:
                     raise RuntimeError('Generator did not return a sheet URL.')
-                clients = _load_clients()
-                if not any(c.get('name', '').strip().lower()
-                           == info['name'].strip().lower() for c in clients):
-                    clients.append({
+                if not db.client_exists(info['name']):
+                    db.add_client({
                         'name': info['name'],
                         'spreadsheet_id': new_id,
                         'master_spreadsheet_id': '',
@@ -828,7 +885,6 @@ def clients_new():
                         'weight_unit': info.get('weight_unit', 'kg'),
                         'active': True,
                     })
-                    _save_clients(clients)
                 shared = result.get('sharedWith') or ''
                 tail = (f' Shared with {shared}.'
                         if shared and not shared.startswith('ERROR') else '')
@@ -859,8 +915,10 @@ def clients_new():
             return render_template('client_new.html', programs=db.list_programs(),
                                    days=db.DAYS, workout_types=db.WORKOUT_TYPES,
                                    wrote_master=True, form=request.form)
-        clients = _load_clients()
-        clients.append({
+        if db.client_exists(name):
+            flash(f"A client named '{name}' is already registered.", 'error')
+            return redirect(url_for('client_detail', name=name))
+        db.add_client({
             'name': name,
             'spreadsheet_id': sheet_id,
             'master_spreadsheet_id': '',
@@ -868,7 +926,6 @@ def clients_new():
             'weight_unit': (request.form.get('reg_unit') or 'kg').strip(),
             'active': True,
         })
-        _save_clients(clients)
         flash(f"Client '{name}' registered.", 'ok')
         return redirect(url_for('client_detail', name=name))
 
@@ -890,8 +947,7 @@ def clients_add():
             flash('Both a client name and the sheet URL/ID are required.', 'error')
             return render_template('client_add.html', form=request.form)
 
-        clients = _load_clients()
-        if any(c.get('name', '').strip().lower() == name.lower() for c in clients):
+        if db.client_exists(name):
             flash(f"A client named '{name}' is already registered.", 'error')
             return render_template('client_add.html', form=request.form)
 
@@ -908,7 +964,7 @@ def clients_add():
             flash('Registered, but the sheet could not be opened — check the URL '
                   'and that the signed-in Google account has access.', 'error')
 
-        clients.append({
+        db.add_client({
             'name': name,
             'spreadsheet_id': sheet_id,
             'master_spreadsheet_id': (request.form.get('master_sheet') or '').strip(),
@@ -916,7 +972,6 @@ def clients_add():
             'weight_unit': (request.form.get('weight_unit') or 'kg').strip(),
             'active': True,
         })
-        _save_clients(clients)
         flash(f"Client '{name}' added.", 'ok')
         return redirect(url_for('client_detail', name=name))
 
@@ -993,6 +1048,27 @@ def client_log(name):
                         logger.error('Weight write failed: %s', exc)
                         flash(f'Weight write failed: {exc}', 'error')
 
+        elif kind == 'sleep':
+            raw_date = (request.form.get('date') or '').strip()
+            hours = (request.form.get('sleep') or '').strip()
+            parsed = _parse_dates([raw_date])[0]
+            if not parsed or not hours:
+                flash('A valid date and sleep hours are required.', 'error')
+            else:
+                row = _weight_row_for_date(service, client['spreadsheet_id'], parsed)
+                if row is None:
+                    flash(f'No row for {raw_date} exists in the Weight tab.', 'error')
+                else:
+                    try:
+                        sc.batch_update_values(
+                            service, client['spreadsheet_id'],
+                            [{'range': f'Weight!L{row}',
+                              'values': [[_to_number(hours, hours)]]}])
+                        flash(f'Logged {hours} h sleep for {raw_date}.', 'ok')
+                    except Exception as exc:
+                        logger.error('Sleep write failed: %s', exc)
+                        flash(f'Sleep write failed: {exc}', 'error')
+
         elif kind == 'payment':
             paid_date = (request.form.get('paid_date') or '').strip()
             parsed = _parse_dates([paid_date])[0]
@@ -1048,7 +1124,7 @@ def client_cronometer(name):
                 flash('Both the Cronometer email and password are required.', 'error')
             else:
                 secrets_store.set_credentials(name, email, password)
-                flash('Cronometer credentials saved (encrypted on this machine).', 'ok')
+                flash('Cronometer credentials saved (encrypted in the shared database).', 'ok')
 
         elif action == 'delete':
             secrets_store.delete_credentials(name)
@@ -1082,6 +1158,32 @@ def client_cronometer(name):
 
     return render_template('client_cronometer.html', client=client,
                            has_creds=secrets_store.has_credentials(name))
+
+
+@app.route('/client/<path:name>/cronometer/foods')
+def client_cronometer_foods(name):
+    """Pull the full per-food Cronometer log (foods + all nutrients) and show it."""
+    name = unquote(name)
+    client = next((c for c in _load_clients() if c['name'] == name), None)
+    if client is None:
+        abort(404)
+
+    days = _to_number(request.args.get('days'), 7) or 7
+    creds = secrets_store.get_credentials(name)
+    data, error = None, None
+    if not creds:
+        error = "Add this client's Cronometer login first (on the Cronometer page)."
+    else:
+        try:
+            data = cronometer_api.fetch_servings(
+                creds['email'], creds['password'], days=int(days))
+        except Exception as exc:
+            logger.error('Cronometer foods fetch failed for %s: %s', name, exc,
+                         exc_info=True)
+            error = f'Could not load foods: {exc}'
+
+    return render_template('cronometer_foods.html', client=client, data=data,
+                           error=error, days=int(days))
 
 
 if __name__ == '__main__':

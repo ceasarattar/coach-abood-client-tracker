@@ -26,8 +26,20 @@
  * generation as the sheet owner -> returns {ok, url, id, fileName, sharedWith}.
  ************************************************************************/
 
-// CHANGE THIS to a long random string, and put the same value in .env.
-const WEBAPP_SECRET = 'CHANGE_ME_to_a_long_random_secret';
+// CHANGE THIS to a long random string, and set the SAME value as the
+// TEMPLATE_WEBAPP_SECRET environment variable on the dashboard host (Render).
+const WEBAPP_SECRET = '';
+
+// The dashboard's Google service-account email. Every generated client sheet is
+// auto-shared with it so the hosted dashboard can read the new sheet. Find it in
+// your service-account JSON as "client_email". Leave '' to share manually.
+const SERVICE_ACCOUNT_EMAIL = '';
+
+// Email the client a "your sheet is ready" message (with the link) when their
+// sheet is generated. Set to false to share silently. The email is sent from the
+// master-sheet owner's Google account.
+const NOTIFY_CLIENT = true;
+const COACH_NAME = 'Coach Abood';
 
 const T_INFO    = '⚙ Client Info';
 const T_PROGRAM = '⚙ Program Builder';
@@ -127,6 +139,7 @@ function readConfig() {
   const schedVals   = pb.getRange('B5:C11').getValues();
   const exVals      = pb.getRange('A15:F300').getValues();
   const targetVals  = ss.getSheetByName(T_TARGETS).getRange('B2:B6').getValues();
+  const sleepTargetVal = ss.getSheetByName(T_TARGETS).getRange('B7').getValue();
 
   const info = infoVals.map(r => r[0]);
   const cfg  = {
@@ -168,8 +181,9 @@ function readConfig() {
         link:  String(r[5]).trim()
       });
     });
-  cfg.exByType  = exByType;
-  cfg.targets   = targetVals.map(r => r[0]);
+  cfg.exByType    = exByType;
+  cfg.targets     = targetVals.map(r => r[0]);
+  cfg.sleepTarget = String(sleepTargetVal || '').trim();
   return cfg;
 }
 
@@ -193,12 +207,42 @@ function generateFromConfig_(cfg) {
   createClientNamedRanges(dest);
   SpreadsheetApp.flush();
 
+  // Share with the dashboard's service account so the hosted app can read it.
+  if (SERVICE_ACCOUNT_EMAIL) {
+    try { dest.addEditor(SERVICE_ACCOUNT_EMAIL); }
+    catch (e) { /* non-fatal: the coach can share manually if this fails */ }
+  }
+
   let sharedWith = '';
   if (cfg.email) {
-    try { dest.addEditor(cfg.email); sharedWith = cfg.email; }
+    try {
+      dest.addEditor(cfg.email);
+      sharedWith = cfg.email;
+      if (NOTIFY_CLIENT) notifyClient_(cfg, dest);
+    }
     catch (e) { sharedWith = 'ERROR: ' + e.message; }
   }
   return { dest: dest, fileName: fname, sharedWith: sharedWith };
+}
+
+// ---- Notify the client their sheet is ready (email + link) ----
+function notifyClient_(cfg, dest) {
+  try {
+    MailApp.sendEmail({
+      to: cfg.email,
+      subject: 'Your ' + COACH_NAME + ' training sheet is ready',
+      htmlBody:
+        '<p>Hi ' + (cfg.name || 'there') + ',</p>' +
+        '<p>Your personal training &amp; nutrition tracker is ready. Open it here:</p>' +
+        '<p><a href="' + dest.getUrl() + '">' + dest.getName() + '</a></p>' +
+        '<p>Use it to log your weight, sleep, workouts and daily nutrition. ' +
+        'Message me anytime with questions.</p>' +
+        '<p>— ' + COACH_NAME + '</p>'
+    });
+  } catch (e) {
+    // Non-fatal: the client still has access even if the email could not be sent
+    // (e.g. the daily mail quota was reached). Generation must not fail on this.
+  }
 }
 
 // ---- Main (menu-driven, with UI alerts) ----
@@ -223,14 +267,15 @@ function buildWeightTab(dest, cfg) {
   const sh      = dest.insertSheet('Weight');
   const n       = 140;
   const lastRow = n + 1;
-  const lastCol = 11;
+  const lastCol = 12;
 
   sh.setHiddenGridlines(true);
 
+  const sleepHead = cfg.sleepTarget ? 'Sleep (hrs) · goal ' + cfg.sleepTarget : 'Sleep (hrs)';
   sh.getRange(1, 1, 1, lastCol)
     .setValues([[
       'Date', 'Weight (' + cfg.unit + ')', 'Day Δ', '7-Day Avg', 'Weekly Avg',
-      'Week #', 'Notes', 'Steps', 'Total Steps', 'Calories', 'Total Calories'
+      'Week #', 'Notes', 'Steps', 'Total Steps', 'Calories', 'Total Calories', sleepHead
     ]])
     .setFontWeight('bold').setFontColor(WHITE)
     .setBackground(NAVY).setHorizontalAlignment('center');
@@ -268,8 +313,9 @@ function buildWeightTab(dest, cfg) {
   sh.getRange(2, 7, n, 1).setBackground(INPUT);
   sh.getRange(2, 8, n, 1).setBackground(INPUT);
   sh.getRange(2, 10, n, 1).setBackground(INPUT);
+  sh.getRange(2, 12, n, 1).setBackground(INPUT);   // Sleep (hrs) input column
 
-  [110, 100, 80, 110, 110, 80, 200, 90, 110, 90, 120]
+  [110, 100, 80, 110, 110, 80, 200, 90, 110, 90, 120, 100]
     .forEach((w, i) => sh.setColumnWidth(i + 1, w));
 
   sh.setFrozenRows(1);
@@ -281,6 +327,12 @@ function buildWeightTab(dest, cfg) {
     SpreadsheetApp.newDataValidation()
       .requireNumberBetween(20, 300).setAllowInvalid(false)
       .setHelpText('Enter weight in ' + cfg.unit + ' (20–300).').build()
+  );
+
+  sh.getRange(2, 12, n, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireNumberBetween(0, 24).setAllowInvalid(false)
+      .setHelpText('Hours of sleep (0–24).').build()
   );
 }
 

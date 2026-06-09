@@ -2,24 +2,23 @@
   COACH ABOOD CLIENT TRACKER  —  START HERE
 ============================================================
 
-Do these 3 things, in order:
+This app runs HOSTED: one shared web address that you and Abood
+both use. Same data for both, nothing to install on his PC,
+nothing to keep in sync.
 
-  1. INSTALL PYTHON (one time)
-     Go to https://www.python.org/downloads/  -> Download -> Run installer
-     IMPORTANT: tick "Add python.exe to PATH" on the first screen.
+>> TO PUT IT ONLINE  (one time, ~15 minutes, free)
+     Open  DEPLOY.md  and follow the checklist:
+     Neon database  +  Google service account  +  Render.
 
-  2. ADD THE SECRET FILE
-     Put the file  credentials.json  (Ceasar sends it to you)
-     into THIS folder — the same folder as setup.bat.
+>> TO GIVE IT TO ABOOD
+     Send him the URL + passcode and the file  FOR-ABOOD.txt.
+     He opens the link, types the passcode, and (optionally)
+     clicks "Install" to get a desktop icon. That's it.
 
-  3. RUN SETUP
-     Double-click  setup.bat
-     It installs everything and asks you to paste your master
-     spreadsheet ID. When it finishes you'll have a
-     "Coach Dashboard" icon on your Desktop.
+>> TO RUN IT ON YOUR OWN MACHINE  (development only)
+     1. Install Python 3.10+  (on Windows tick "Add to PATH").
+     2. Double-click  setup.bat   (or run  ./setup.sh ).
+     3. It opens the app at  http://127.0.0.1:5000
 
-------------------------------------------------------------
-To open the app later: double-click the Desktop icon.
-Stuck? Open the app and click "Help & Setup" on the left for
-a click-by-click guide that checks what's done for you.
+More detail:  README.md   and   DEPLOY.md
 ============================================================

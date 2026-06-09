@@ -101,6 +101,30 @@ def parse_daily_nutrition_csv(text: str) -> list:
     return out
 
 
+def parse_servings_csv(text: str) -> dict:
+    """
+    Parse a Cronometer 'Servings' export — one row per food logged, with every
+    nutrient column Cronometer provides — into a passthrough structure:
+
+        {'headers': [<all columns, in order>],
+         'date_col': <the day/date column header, or None>,
+         'rows':   [ {col: value, ...}, ... ]   # newest day first}
+
+    Generic on purpose: every column is preserved so the dashboard can show
+    "everything you see in Cronometer" — foods, amounts, macros and micros.
+    """
+    reader = csv.DictReader(io.StringIO(text))
+    headers = list(reader.fieldnames or [])
+    if not headers:
+        return {"headers": [], "date_col": None, "rows": []}
+
+    date_col = _match_col(headers, "day") or _match_col(headers, "date")
+    rows = [{h: (row.get(h, "") or "") for h in headers} for row in reader]
+    if date_col:
+        rows.sort(key=lambda r: _norm_date(r.get(date_col, "")) or "", reverse=True)
+    return {"headers": headers, "date_col": date_col, "rows": rows}
+
+
 # --------------------------------------------------------------------------
 # Browser-driven fetch (Playwright) — needs validation with a real account
 # --------------------------------------------------------------------------

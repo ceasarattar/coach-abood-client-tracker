@@ -37,6 +37,26 @@
     </form>
   </section>
 
+  <!-- Sleep -->
+  <section class="panel">
+    <div class="panel-title">{{ icon('clock', 14) }} Log sleep</div>
+    <form method="post">
+      <input type="hidden" name="kind" value="sleep">
+      <label class="field">
+        <span class="field-label">{{ icon('calendar', 14) }} Date (dd/mm/yyyy)</span>
+        <input type="text" name="date" class="mono" value="{{ today }}" placeholder="dd/mm/yyyy" required>
+      </label>
+      <label class="field">
+        <span class="field-label">{{ icon('clock', 14) }} Sleep (hours)</span>
+        <input type="text" name="sleep" placeholder="e.g. 7.5" required>
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save sleep</button>
+      </div>
+      <p class="metric-sub">Writes to the matching date row in the Weight tab (col L).</p>
+    </form>
+  </section>
+
   <!-- Payment -->
   <section class="panel">
     <div class="panel-title">{{ icon('dollar', 14) }} Mark payment received</div>

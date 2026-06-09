@@ -32,7 +32,7 @@ import urllib.request
 import urllib.error
 import logging
 
-from cronometer_client import parse_daily_nutrition_csv
+from cronometer_client import parse_daily_nutrition_csv, parse_servings_csv
 
 logger = logging.getLogger(__name__)
 
@@ -195,15 +195,28 @@ def _discover_authscope(opener):
     return None
 
 
-def _export_csv(opener, token, start, end):
-    url = (f"{EXPORT_URL}?nonce={urllib.parse.quote(token)}&generate=dailySummary"
+def _export_csv(opener, token, start, end, report="dailySummary"):
+    """Download a Cronometer export CSV. `report` is the export type:
+    'dailySummary' (daily totals) or 'servings' (one row per food, all nutrients)."""
+    url = (f"{EXPORT_URL}?nonce={urllib.parse.quote(token)}&generate={report}"
            f"&start={start.isoformat()}&end={end.isoformat()}")
     try:
         return _request(opener, url).read().decode("utf-8", "replace")
     except urllib.error.HTTPError as exc:
         raise CronometerError(
             f"Cronometer export was rejected (HTTP {exc.code}). The export "
-            "token may have expired — try the sync again.") from exc
+            "token may have expired — try again.") from exc
+
+
+def _authenticated_session(email, password):
+    """Run the login -> authenticate -> token flow; return (opener, token)."""
+    opener, cj = _new_opener()
+    nonce = _login(opener, cj, email, password)
+    userid = _authenticate(opener)
+    # authenticate can rotate the session nonce
+    nonce = next((c.value for c in cj if c.name == "sesnonce"), nonce)
+    token = _generate_token(opener, nonce, userid)
+    return opener, token
 
 
 # --------------------------------------------------------------------------
@@ -222,19 +235,37 @@ def fetch_daily_nutrition(email, password, days=14, **_ignored):
     end = _dt.date.today()
     start = end - _dt.timedelta(days=days)
 
-    opener, cj = _new_opener()
-    nonce = _login(opener, cj, email, password)
-    userid = _authenticate(opener)
-    # authenticate can rotate the session nonce
-    nonce = next((c.value for c in cj if c.name == "sesnonce"), nonce)
-    token = _generate_token(opener, nonce, userid)
-    csv_text = _export_csv(opener, token, start, end)
+    opener, token = _authenticated_session(email, password)
+    csv_text = _export_csv(opener, token, start, end, report="dailySummary")
 
     rows = parse_daily_nutrition_csv(csv_text)
     if not rows:
         raise CronometerError("Logged in, but the Cronometer export had no "
                               "rows for that date range.")
     return rows
+
+
+def fetch_servings(email, password, days=7, **_ignored):
+    """
+    Log in to Cronometer and return the full per-food 'Servings' export for the
+    last `days` days — every food the client logged, with all its macro/micro
+    nutrients. Returns parse_servings_csv()'s dict {'headers','date_col','rows'}.
+    Raises CronometerError with a coach-readable message on failure.
+    """
+    if not email or not password:
+        raise CronometerError("Missing Cronometer email or password.")
+
+    end = _dt.date.today()
+    start = end - _dt.timedelta(days=days)
+
+    opener, token = _authenticated_session(email, password)
+    csv_text = _export_csv(opener, token, start, end, report="servings")
+
+    data = parse_servings_csv(csv_text)
+    if not data["rows"]:
+        raise CronometerError("Logged in, but no foods were logged in that "
+                              "date range.")
+    return data
 
 
 if __name__ == "__main__":  # manual self-test against the saved account

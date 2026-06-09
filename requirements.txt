@@ -1,12 +1,18 @@
+# Web app
 flask>=3.0
-google-auth>=2.0
-google-auth-oauthlib>=1.0
-google-auth-httplib2>=0.2
-google-api-python-client>=2.0
-PyYAML>=6.0
+gunicorn>=21.0            # production WSGI server (Render/any host)
 
-# Cronometer sync
-cryptography>=42.0        # encrypts stored client Cronometer logins (required)
+# Database — SQLAlchemy works on SQLite (local dev) and Postgres (hosted).
+SQLAlchemy>=2.0
+psycopg[binary]>=3.1      # PostgreSQL driver (Neon/Render). Harmless on SQLite-only dev.
+
+# Google Sheets (service-account auth — no browser, no token.json)
+google-auth>=2.0
+google-api-python-client>=2.0
+PyYAML>=6.0              # only used to import a legacy clients.yaml on first boot
+
+# Cronometer sync — encrypts stored client logins at rest
+cryptography>=42.0
 
 # OPTIONAL — only for the legacy browser fallback in cronometer_client.py.
 # The default sync path (cronometer_api.py) is pure stdlib and needs none of this.

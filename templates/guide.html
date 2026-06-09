@@ -40,97 +40,76 @@
 </style>
 
 <div class="g-wrap">
-  <h1 class="page-title" style="margin-bottom:0.4rem">{{ icon('rocket', 24) }} Get set up</h1>
+  <h1 class="page-title" style="margin-bottom:0.4rem">{{ icon('rocket', 24) }} Help &amp; status</h1>
   <p style="color:var(--text-2);margin-bottom:1.4rem">
-    Everything Coach Abood needs, in order. The checklist below updates itself —
-    green means it's done. Click any step for click-by-click instructions.
+    This is the live, shared dashboard — you and Ceasar see the exact same data.
+    The checklist below shows the connection status; click any step for how to use it.
   </p>
 
   {# ── Live status ─────────────────────────────────────────────────────── #}
   <div class="panel" style="margin-bottom:1.4rem">
-    <div class="panel-title">{{ icon('layers', 18) }} Setup status</div>
-    {{ statrow(status.credentials,
-               'Google connection file (credentials.json)',
-               'Found in the project folder.',
-               'Missing — get it from Ceasar and drop it in the project folder (Step 1).') }}
+    <div class="panel-title">{{ icon('layers', 18) }} Connection status</div>
+    {{ statrow(status.sheets,
+               'Google Sheets connected (service account)',
+               'Connected as ' ~ (status.sa_email or 'the service account') ~ '.',
+               'Not connected — the server needs GOOGLE_SERVICE_ACCOUNT_JSON set (see DEPLOY.md).') }}
     {{ statrow(status.master,
-               'Master spreadsheet linked',
-               'MASTER_SHEET_ID is set (' ~ status.master_tail ~ ').',
-               'Not set — paste the master sheet ID during setup (Step 2).') }}
-    {{ statrow(status.token,
-               'Signed in to Google',
-               ('Signed in — token is ' ~ status.token_state ~ '.') if status.token_state != 'expired'
-                 else 'Signed in earlier, but the login expired.',
-               'Not signed in yet — launching the app opens a Google sign-in tab (Step 3).',
-               warn=(status.token_state == 'expired')) }}
+               'Master spreadsheet linked & shared',
+               'MASTER_SHEET_ID is set (' ~ status.master_tail ~ '). Make sure it is shared with the service account.',
+               'Not set — set MASTER_SHEET_ID and share the master sheet with the service account email.') }}
+    {{ statrow(status.client_count > 0,
+               'Clients registered',
+               '' ~ status.client_count ~ ' client(s) registered.',
+               'No clients yet — use “Add client” to register a sheet.',
+               warn=true) }}
     {{ statrow(status.webapp,
                'One-click client generation (optional)',
                'Generator web app is configured.',
-               'Optional — set it up to make the New-Client wizard one click (Step 4).',
+               'Optional — set it up to make the New-Client wizard one click (Step 3).',
                warn=true) }}
-    {% if status.token_state == 'expired' %}
-    <div class="g-cta"><a href="{{ url_for('reauth') }}" class="btn btn-primary">{{ icon('check',16) }} Re-sign in to Google</a></div>
-    {% endif %}
     {% if status.ready %}
     <p class="metric-sub" style="margin-top:0.9rem;color:var(--green)">
-      {{ icon('check',14) }} Core setup looks complete — you have {{ status.client_count }} client(s) registered.
+      {{ icon('check',14) }} Everything's connected — {{ status.client_count }} client(s) registered.
     </p>
     {% endif %}
   </div>
 
   {# ── Step-by-step ────────────────────────────────────────────────────── #}
   <div class="g-steps">
-    <details {{ 'open' if not status.credentials }}>
-      <summary><span class="num">1</span> {{ icon('download',16) }} Add the Google connection file</summary>
+    <details>
+      <summary><span class="num">1</span> {{ icon('rocket',16) }} Install it as an app (optional)</summary>
       <div class="body">
-        <p>The app talks to Google Sheets through a small key file called
-        <code>credentials.json</code>. It's a secret, so it is <strong>not</strong>
-        included in the download.</p>
-        <ol>
-          <li>Ceasar sends you <code>credentials.json</code> separately (email/USB/drive).</li>
-          <li>Save it, then move it <strong>into the project folder</strong> — the same
-            folder that contains <code>setup.bat</code> and <code>app.py</code>.</li>
-          <li>That's it. Don't rename it.</li>
-        </ol>
-        <p class="metric-sub">Advanced (Ceasar): it's an OAuth <em>Desktop app</em> client
-        from Google Cloud Console → APIs &amp; Services → Credentials, with the
-        Google Sheets API enabled.</p>
+        <p>This runs in your browser, but you can pin it like a real desktop app:</p>
+        <ul>
+          <li><strong>Edge/Chrome (computer):</strong> open the menu (⋯) →
+            <em>Apps → Install this site as an app</em>. You get an icon and a window
+            with no address bar.</li>
+          <li><strong>Phone:</strong> Share → <em>Add to Home Screen</em>.</li>
+        </ul>
+        <p class="metric-sub">No download, no Python, nothing to set up — it always
+        loads the latest version because it's the same live site.</p>
       </div>
     </details>
 
-    <details {{ 'open' if status.credentials and not status.master }}>
-      <summary><span class="num">2</span> {{ icon('sheet',16) }} Run setup &amp; link the master sheet</summary>
+    <details>
+      <summary><span class="num">2</span> {{ icon('userplus',16) }} Add clients</summary>
       <div class="body">
-        <ol>
-          <li>In the project folder, double-click <code>setup.bat</code>.
-            (If Windows shows a blue warning: <em>More info → Run anyway</em>.)</li>
-          <li>It installs everything automatically. When it asks, paste your
-            <strong>master spreadsheet ID</strong> and press Enter.</li>
-          <li>The ID is the long code in the master sheet's web address:<br>
-            <code>docs.google.com/spreadsheets/d/</code><strong>THIS-LONG-CODE</strong><code>/edit</code></li>
-          <li>It finishes by making a <strong>Coach Dashboard</strong> shortcut on your Desktop.</li>
-        </ol>
-      </div>
-    </details>
-
-    <details {{ 'open' if status.credentials and status.master and not status.token }}>
-      <summary><span class="num">3</span> {{ icon('check',16) }} Launch &amp; sign in to Google</summary>
-      <div class="body">
-        <ol>
-          <li>Double-click the <strong>Coach Dashboard</strong> icon on your Desktop.</li>
-          <li>Your browser opens the dashboard, and a Google sign-in tab appears.</li>
-          <li>Sign in with the <strong>Google account that owns the spreadsheets</strong>
-            and click <strong>Allow</strong>. (If it says "unverified," click
-            <em>Advanced → Go to… → Allow</em> — it's your own app.)</li>
-        </ol>
-        <p class="metric-sub">Logins can expire ~weekly while the Google project is in
-        "Testing." If that happens, just use the <strong>Re-sign in</strong> button above.
-        Ceasar can "Publish" the project to make it permanent.</p>
+        <ul>
+          <li><strong>Already have a sheet for them?</strong> <em>Add client</em> → paste
+            the client's Google Sheet link. (Make sure that sheet is shared with the
+            service account email shown above.)</li>
+          <li><strong>Brand-new client?</strong> <em>Add client → Start guided setup</em>
+            to build their program and generate the sheet.</li>
+        </ul>
+        <div class="g-cta">
+          <a href="{{ url_for('clients_add') }}" class="btn">Add an existing sheet</a>
+          <a href="{{ url_for('clients_new') }}" class="btn">New-client wizard</a>
+        </div>
       </div>
     </details>
 
     <details {{ 'open' if status.ready and not status.webapp }}>
-      <summary><span class="num">4</span> {{ icon('sparkles',16) }} One-click new clients (optional)</summary>
+      <summary><span class="num">3</span> {{ icon('sparkles',16) }} One-click new clients (optional)</summary>
       <div class="body">
         <p>Without this, the New-Client wizard still works — it just asks you to click
         <em>Coach Tools → Generate Client Template</em> in the master sheet and paste
@@ -141,21 +120,20 @@
           <li>Set <code>WEBAPP_SECRET</code> to a long random string. <strong>Deploy →
             New deployment → Web app</strong> (Execute as: Me, Access: Anyone). Copy the
             <code>/exec</code> URL.</li>
-          <li>Put the URL + the same secret into the project's <code>.env</code> as
-            <code>TEMPLATE_WEBAPP_URL</code> and <code>TEMPLATE_WEBAPP_SECRET</code>
-            (the setup script can do this for you), then restart the app.</li>
+          <li>Add the URL + the same secret as the <code>TEMPLATE_WEBAPP_URL</code> and
+            <code>TEMPLATE_WEBAPP_SECRET</code> environment variables on the host
+            (Render → Environment), then redeploy.</li>
         </ol>
-        <div class="g-cta"><a href="{{ url_for('clients_new') }}" class="btn">Open the New-Client wizard</a></div>
       </div>
     </details>
 
     <details>
-      <summary><span class="num">5</span> {{ icon('flame',16) }} Cronometer nutrition sync (optional)</summary>
+      <summary><span class="num">4</span> {{ icon('flame',16) }} Cronometer nutrition sync (optional)</summary>
       <div class="body">
         <ol>
           <li>Open a client → <strong>Cronometer</strong> → enter their Cronometer
-            email + password → <strong>Save credentials</strong> (stored encrypted on
-            this PC only — never in Google or GitHub).</li>
+            email + password → <strong>Save credentials</strong> (stored encrypted in
+            the shared database — never in Google or GitHub).</li>
           <li>Click <strong>Sync nutrition</strong>. Their daily calories flow into the
             Weight tab and the calorie chart.</li>
         </ol>
@@ -165,17 +143,32 @@
     </details>
 
     <details>
-      <summary><span class="num">6</span> {{ icon('users',16) }} Using it day to day</summary>
+      <summary><span class="num">5</span> {{ icon('users',16) }} Using it day to day</summary>
       <div class="body">
         <ul>
-          <li><strong>Open:</strong> double-click the Desktop shortcut. Already open? It
-            just reopens the browser — never a second copy.</li>
-          <li><strong>Close:</strong> close the small black window the shortcut opened.</li>
+          <li><strong>Open:</strong> the bookmark or the installed app icon. You and
+            Ceasar always see the same live data.</li>
           <li><strong>Client dots:</strong> 🟢 on track · 🟡 needs a look · 🔴 overdue / not logging / payment late.</li>
-          <li><strong>Add a client you already have a sheet for:</strong> Add client → paste their sheet link.</li>
-          <li><strong>Brand-new client:</strong> Add client → Start guided setup.</li>
           <li><strong>Log weight / payment:</strong> open a client → Log entry (dates are dd/mm/yyyy).</li>
-          <li><strong>Something looks off?</strong> send Ceasar <code>logs\dashboard.log</code> from the project folder.</li>
+          <li><strong>Sign out:</strong> use the “Sign out” link in the sidebar.</li>
+          <li><strong>Something looks off?</strong> Ceasar can check the same screen and
+            the server logs.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="num">6</span> {{ icon('layers',16) }} How it's wired (for Ceasar)</summary>
+      <div class="body">
+        <ul>
+          <li><strong>Hosting:</strong> one Render web service; both users share it.</li>
+          <li><strong>Database:</strong> Neon Postgres (<code>DATABASE_URL</code>) holds the
+            workout library + client registry. Inspect/fix data in the Neon console.</li>
+          <li><strong>Sheets:</strong> a Google <em>service account</em>
+            (<code>GOOGLE_SERVICE_ACCOUNT_JSON</code>) — share every sheet with its email.
+            No more credentials.json or weekly re-login.</li>
+          <li><strong>Login:</strong> shared <code>APP_PASSCODE</code>.</li>
+          <li>Full steps are in <code>DEPLOY.md</code>.</li>
         </ul>
       </div>
     </details>

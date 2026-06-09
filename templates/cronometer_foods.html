@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% from '_icons.html' import icon %}
+{% block title %}Cronometer foods · {{ client.name }}{% endblock %}
+{% block crumbs %}
+  <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span>
+  <a href="{{ url_for('client_detail', name=client.name) }}">{{ client.name }}</a><span class="sep">/</span>
+  <a href="{{ url_for('client_cronometer', name=client.name) }}">Cronometer</a><span class="sep">/</span>
+  <span class="here">Foods</span>
+{% endblock %}
+
+{% block content %}
+<span class="back-link" onclick="location.href='{{ url_for('client_cronometer', name=client.name) }}'">{{ icon('arrowleft', 14) }} Cronometer</span>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ icon('flame', 22) }} Logged foods — {{ client.name }}</h1>
+    <p class="page-sub">Every food logged in Cronometer, with all of its nutrients (live pull).</p>
+  </div>
+  <form method="get" class="header-actions" style="display:flex;gap:0.5rem;align-items:flex-end">
+    <label class="field" style="max-width:120px;margin:0">
+      <span class="field-label">Days</span>
+      <input type="number" name="days" class="num" value="{{ days }}" min="1" max="60">
+    </label>
+    <button type="submit" class="btn btn-primary">{{ icon('flame', 16) }} Reload</button>
+  </form>
+</div>
+
+{% if error %}
+<div class="error-block error-block-lg">{{ icon('warn', 20, 'error-icon') }} <span>{{ error }}</span></div>
+{% elif data and data.rows %}
+<div class="panel" style="overflow:auto; max-height:74vh; padding:0">
+  <table class="table hover" style="white-space:nowrap; font-size:0.8rem">
+    <thead>
+      <tr>{% for h in data.headers %}<th>{{ h }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {% for row in data.rows %}
+      <tr>{% for h in data.headers %}<td class="num">{{ row[h] }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="metric-sub" style="margin-top:0.7rem">
+  {{ data.rows | length }} food entries · {{ data.headers | length }} columns ·
+  last {{ days }} days. Scroll sideways to see every nutrient.
+</p>
+{% else %}
+<p class="no-data">No foods were logged in Cronometer for the last {{ days }} days.</p>
+{% endif %}
+{% endblock %}

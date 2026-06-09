@@ -91,13 +91,14 @@
 
     <!-- STEP 4 — Targets -->
     <section class="wpanel" data-panel="4" hidden>
-      <div class="panel-title">Step 4 · Nutrition targets</div>
+      <div class="panel-title">Step 4 · Nutrition &amp; sleep targets</div>
       <div class="field-row">
         <label class="field"><span class="field-label">Calories (kcal)</span><input type="number" name="calories" class="num" value="2000"></label>
         <label class="field"><span class="field-label">Protein (g)</span><input type="number" name="protein" class="num" value="150"></label>
         <label class="field"><span class="field-label">Carbs (g)</span><input type="number" name="carbs" class="num" value="200"></label>
         <label class="field"><span class="field-label">Fat (g)</span><input type="number" name="fat" class="num" value="70"></label>
         <label class="field"><span class="field-label">Fiber (g)</span><input type="number" name="fiber" class="num" value="30"></label>
+        <label class="field"><span class="field-label">Sleep target (hrs)</span><input type="number" name="sleep_target" class="num" value="8" step="0.5" min="0" max="24"></label>
       </div>
     </section>
 
@@ -214,7 +215,8 @@ function renderReview() {
   html += '<h3>Program</h3><p>' + ex + ' exercise(s)</p>';
   html += '<h3>Weeks</h3><p>' + v('num_weeks') + ' weeks</p>';
   html += '<h3>Targets</h3><ul><li>' + v('calories') + ' kcal</li><li>P ' +
-    v('protein') + ' / C ' + v('carbs') + ' / F ' + v('fat') + ' / Fiber ' + v('fiber') + '</li></ul>';
+    v('protein') + ' / C ' + v('carbs') + ' / F ' + v('fat') + ' / Fiber ' + v('fiber') + '</li>' +
+    '<li>Sleep target ' + v('sleep_target') + ' h</li></ul>';
   document.getElementById('review-out').innerHTML = html;
 }
 
