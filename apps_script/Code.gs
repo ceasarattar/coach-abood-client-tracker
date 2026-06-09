@@ -26,8 +26,14 @@
  * generation as the sheet owner -> returns {ok, url, id, fileName, sharedWith}.
  ************************************************************************/
 
-// CHANGE THIS to a long random string, and put the same value in .env.
+// CHANGE THIS to a long random string, and set the SAME value as the
+// TEMPLATE_WEBAPP_SECRET environment variable on the dashboard host (Render).
 const WEBAPP_SECRET = 'CHANGE_ME_to_a_long_random_secret';
+
+// The dashboard's Google service-account email. Every generated client sheet is
+// auto-shared with it so the hosted dashboard can read the new sheet. Find it in
+// your service-account JSON as "client_email". Leave '' to share manually.
+const SERVICE_ACCOUNT_EMAIL = '';
 
 const T_INFO    = '⚙ Client Info';
 const T_PROGRAM = '⚙ Program Builder';
@@ -192,6 +198,12 @@ function generateFromConfig_(cfg) {
 
   createClientNamedRanges(dest);
   SpreadsheetApp.flush();
+
+  // Share with the dashboard's service account so the hosted app can read it.
+  if (SERVICE_ACCOUNT_EMAIL) {
+    try { dest.addEditor(SERVICE_ACCOUNT_EMAIL); }
+    catch (e) { /* non-fatal: the coach can share manually if this fails */ }
+  }
 
   let sharedWith = '';
   if (cfg.email) {
