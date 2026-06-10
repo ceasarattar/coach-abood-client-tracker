@@ -5,7 +5,7 @@ import logging
 import logging.handlers
 import urllib.request
 import urllib.error
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import unquote, urlparse
 
 from flask import (Flask, render_template, redirect, url_for, jsonify, abort,
@@ -1171,31 +1171,88 @@ def client_cronometer(name):
                            has_creds=secrets_store.has_credentials(name))
 
 
+def _foods_cache_key(name: str) -> str:
+    return f'cron_foods:{name}'
+
+
+def _foods_cache_get(name: str):
+    """Return (view_dict, fetched_at_str) from the DB, or (None, None)."""
+    raw = db.kv_get(_foods_cache_key(name))
+    if not raw:
+        return None, None
+    try:
+        data = json.loads(raw)
+        return data.get('view'), data.get('fetched_at')
+    except Exception:
+        return None, None
+
+
+def _foods_cache_set(name: str, view: dict) -> None:
+    payload = json.dumps({
+        'fetched_at': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+        'view': view,
+    })
+    db.kv_set(_foods_cache_key(name), payload)
+
+
+def _foods_merge(cached: dict, fresh: dict) -> dict:
+    """Overlay fresh days onto cached days; prune to last 31 days, newest-first."""
+    by_date = {}
+    for day in (cached.get('days') or []):
+        by_date[day['date']] = day
+    for day in (fresh.get('days') or []):
+        by_date[day['date']] = day  # fresh wins
+
+    cutoff = date.today() - timedelta(days=31)
+
+    def _parse_dmy(s):
+        try:
+            d_, m_, y_ = s.split('/')
+            return date(int(y_), int(m_), int(d_))
+        except Exception:
+            return date.min
+
+    kept = sorted(
+        [d for d in by_date.values() if _parse_dmy(d['date']) >= cutoff],
+        key=lambda d: _parse_dmy(d['date']),
+        reverse=True,
+    )
+    return {'days': kept, 'count': sum(len(d['foods']) for d in kept)}
+
+
 @app.route('/client/<path:name>/cronometer/foods')
 def client_cronometer_foods(name):
-    """Pull the full per-food Cronometer log (foods + all nutrients) and show it."""
+    """Show the full per-food Cronometer log. Caches up to 31 days in the DB."""
     name = unquote(name)
     client = next((c for c in _load_clients() if c['name'] == name), None)
     if client is None:
         abort(404)
 
     days = _to_number(request.args.get('days'), 7) or 7
+    do_reload = request.args.get('reload') == '1'
+
     creds = secrets_store.get_credentials(name)
-    view, error = None, None
+    cached_view, fetched_at = _foods_cache_get(name)
+    view, error = cached_view, None
+
     if not creds:
         error = "Add this client's Cronometer login first (on the Cronometer page)."
-    else:
+    elif do_reload or cached_view is None:
         try:
             parsed = cronometer_api.fetch_servings(
                 creds['email'], creds['password'], days=int(days))
-            view = cronometer_client.structure_servings(parsed)
+            fresh = cronometer_client.structure_servings(parsed)
+            view = _foods_merge(cached_view or {}, fresh) if cached_view else fresh
+            _foods_cache_set(name, view)
+            fetched_at = 'just now'
         except Exception as exc:
             logger.error('Cronometer foods fetch failed for %s: %s', name, exc,
                          exc_info=True)
             error = f'Could not load foods: {exc}'
+            # fall back to whatever was cached
 
     return render_template('cronometer_foods.html', client=client, view=view,
-                           error=error, days=int(days))
+                           error=error, days=int(days), fetched_at=fetched_at)
 
 
 if __name__ == '__main__':

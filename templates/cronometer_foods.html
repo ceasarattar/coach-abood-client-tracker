@@ -10,38 +10,194 @@
 
 {% block content %}
 <style>
-  .cf-wrap { max-width: 880px; }
-  .cf-day { border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
-            margin-bottom: 0.9rem; background: var(--surface); }
-  .cf-day > summary, .cf-food > summary { list-style: none; cursor: pointer; }
-  .cf-day > summary::-webkit-details-marker,
-  .cf-food > summary::-webkit-details-marker { display: none; }
-  .cf-day-sum { display: flex; align-items: center; gap: 0.7rem;
-                padding: 0.85rem 1rem; background: var(--surface-2); font-weight: 650; }
-  .cf-day-sum::before, .cf-food-sum::before { content: '▸'; color: var(--muted);
-                font-size: 0.8rem; transition: transform .15s; flex-shrink: 0; }
-  details[open] > .cf-day-sum::before, details[open] > .cf-food-sum::before { transform: rotate(90deg); }
-  .cf-date { color: var(--text); }
-  .cf-day-tot { margin-left: auto; color: var(--text-2); font-weight: 500; font-size: 0.85rem; }
-  .cf-day-tot b { color: var(--accent); font-family: var(--mono); }
-  .cf-count { color: var(--muted); margin-left: 0.5rem; }
+  /* ── Foods page ─────────────────────────────────────────────────────────── */
+  .cf-wrap { max-width: 960px; }
 
+  /* Day block */
+  .cf-day {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+    background: var(--surface);
+  }
+  .cf-day > summary { list-style: none; cursor: pointer; user-select: none; }
+  .cf-day > summary::-webkit-details-marker { display: none; }
+
+  .cf-day-hd {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1.1rem;
+    background: var(--surface-2);
+    flex-wrap: wrap;
+  }
+  .cf-day-hd::before {
+    content: '▸';
+    color: var(--muted);
+    font-size: 0.75rem;
+    transition: transform .15s;
+    flex-shrink: 0;
+    width: 1rem;
+  }
+  .cf-day[open] > summary > .cf-day-hd::before,
+  details.cf-day[open] > summary .cf-day-hd::before { transform: rotate(90deg); }
+  details.cf-day[open] > summary > .cf-day-hd::before { transform: rotate(90deg); }
+
+  .cf-date {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    flex-shrink: 0;
+  }
+  .cf-day-macros {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .cf-kcal-val {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--accent-bright);
+  }
+  .cf-macro-sep { color: var(--border-strong); }
+  .cf-macro-txt {
+    font-size: 0.82rem;
+    color: var(--text-2);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  .cf-count {
+    font-size: 0.74rem;
+    color: var(--muted);
+    background: var(--surface-3);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    flex-shrink: 0;
+  }
+
+  /* Food rows */
   .cf-food { border-top: 1px solid var(--border-soft); }
-  .cf-food-sum { display: grid; grid-template-columns: 1.5rem 1fr auto;
-                 align-items: center; gap: 0.6rem; padding: 0.6rem 1rem 0.6rem 1.3rem; }
-  .cf-name { color: var(--text); font-weight: 550; }
-  .cf-amt { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
-  .cf-macs { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
-  .cf-mac { font-family: var(--mono); font-size: 0.74rem; padding: 0.12rem 0.45rem;
-            border-radius: 6px; background: var(--surface-3); color: var(--text-2); white-space: nowrap; }
-  .cf-mac.kcal { background: rgba(79,155,232,.16); color: var(--accent); }
+  .cf-food > summary { list-style: none; cursor: pointer; user-select: none; }
+  .cf-food > summary::-webkit-details-marker { display: none; }
 
-  .cf-detail { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-               gap: 0.3rem 1.2rem; padding: 0.4rem 1.3rem 1rem 2.9rem; }
-  .cf-dl { display: flex; justify-content: space-between; gap: 0.5rem;
-           border-bottom: 1px dashed var(--border-soft); padding: 0.25rem 0; font-size: 0.82rem; }
-  .cf-dl span { color: var(--muted); }
-  .cf-dl b { color: var(--text); font-family: var(--mono); font-weight: 500; }
+  .cf-food-hd {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 1.1rem 0.6rem 1.4rem;
+    transition: background 0.1s;
+  }
+  .cf-food-hd:hover { background: var(--surface-2); }
+  .cf-food-hd::before {
+    content: '▸';
+    color: var(--muted);
+    font-size: 0.7rem;
+    transition: transform .15s;
+    flex-shrink: 0;
+    width: 0.9rem;
+  }
+  details.cf-food[open] > summary > .cf-food-hd::before { transform: rotate(90deg); }
+
+  .cf-food-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 580;
+    color: var(--text);
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cf-food-amt {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 0.82rem;
+    margin-left: 0.35rem;
+  }
+  .cf-chips {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+  }
+  .cf-chip {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.14rem 0.42rem;
+    border-radius: 6px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .cf-chip-kcal {
+    background: oklch(0.685 0.118 245 / 0.18);
+    color: var(--accent-bright);
+    border-color: oklch(0.685 0.118 245 / 0.3);
+  }
+  .cf-chip-p {
+    background: oklch(0.745 0.140 150 / 0.14);
+    color: var(--green);
+    border-color: oklch(0.745 0.140 150 / 0.28);
+  }
+  .cf-chip-c {
+    background: oklch(0.780 0.100 200 / 0.14);
+    color: oklch(0.780 0.100 200);
+    border-color: oklch(0.780 0.100 200 / 0.28);
+  }
+  .cf-chip-f {
+    background: oklch(0.808 0.125 82 / 0.14);
+    color: var(--amber);
+    border-color: oklch(0.808 0.125 82 / 0.28);
+  }
+
+  /* Nutrient detail grid */
+  .cf-nutrients {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0 1.5rem;
+    padding: 0.5rem 1.4rem 1rem 2.6rem;
+    background: var(--bg);
+    border-top: 1px solid var(--border-soft);
+  }
+  .cf-nutr {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.22rem 0;
+    border-bottom: 1px dashed var(--border-soft);
+    font-size: 0.8rem;
+  }
+  .cf-nutr-name { color: var(--muted); flex: 1; }
+  .cf-nutr-val { color: var(--text-2); font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+
+  /* Cache info bar */
+  .cf-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .cf-meta-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 5px var(--green);
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 600px) {
+    .cf-chips { display: none; }
+    .cf-food-name { white-space: normal; }
+  }
 </style>
 
 <span class="back-link" onclick="location.href='{{ url_for('client_cronometer', name=client.name) }}'">{{ icon('arrowleft', 14) }} Cronometer</span>
@@ -55,52 +211,101 @@
       <span class="field-label">Days</span>
       <input type="number" name="days" class="num" value="{{ days }}" min="1" max="60">
     </label>
+    <input type="hidden" name="reload" value="1">
     <button type="submit" class="btn btn-primary">{{ icon('flame', 16) }} Reload</button>
   </form>
 </div>
 
+{% if fetched_at %}
+<div class="cf-meta">
+  <span class="cf-meta-dot"></span>
+  <span>
+    {% if fetched_at == 'just now' %}
+      Fetched just now
+    {% else %}
+      Cached · last fetched {{ fetched_at | replace('T', ' ') | replace('+00:00', ' UTC') }}
+    {% endif %}
+    · showing up to 31 days
+  </span>
+  <a href="?days={{ days }}&reload=1" class="inline-link" style="font-size:0.78rem">Refresh now</a>
+</div>
+{% endif %}
+
 {% if error %}
-<div class="error-block error-block-lg">{{ icon('warn', 20, 'error-icon') }} <span>{{ error }}</span></div>
-{% elif view and view.days %}
+<div class="error-block error-block-lg" style="margin-bottom:1rem">{{ icon('warn', 20, 'error-icon') }} <span>{{ error }}</span></div>
+{% endif %}
+
+{% if view and view.days %}
 <div class="cf-wrap">
   {% for day in view.days %}
   <details class="cf-day" {{ 'open' if loop.first }}>
-    <summary class="cf-day-sum">
-      <span class="cf-date">{{ day.date }}</span>
-      <span class="cf-day-tot">
-        <b>{{ day.totals.energy }}</b> kcal · P {{ day.totals.protein }} · C {{ day.totals.carbs }} · F {{ day.totals.fat }}
-        <span class="cf-count">{{ day.foods | length }} item{{ 's' if day.foods | length != 1 }}</span>
-      </span>
+    <summary>
+      <div class="cf-day-hd">
+        <span class="cf-date">{{ day.date }}</span>
+        <span class="cf-day-macros">
+          <span class="cf-kcal-val">{{ day.totals.energy }}</span>
+          <span class="cf-macro-sep">·</span>
+          <span class="cf-macro-txt">P {{ day.totals.protein }}</span>
+          <span class="cf-macro-sep">·</span>
+          <span class="cf-macro-txt">C {{ day.totals.carbs }}</span>
+          <span class="cf-macro-sep">·</span>
+          <span class="cf-macro-txt">F {{ day.totals.fat }}</span>
+          <span class="cf-count">{{ day.foods | length }} item{{ 's' if day.foods | length != 1 }}</span>
+        </span>
+      </div>
     </summary>
 
     {% for food in day.foods %}
     <details class="cf-food">
-      <summary class="cf-food-sum">
-        <span></span>
-        <span class="cf-name">{{ food.name }}{% if food.amount %} <span class="cf-amt">· {{ food.amount }}</span>{% endif %}</span>
-        <span class="cf-macs">
-          {% if food.energy %}<span class="cf-mac kcal">{{ food.energy }} kcal</span>{% endif %}
-          {% if food.protein %}<span class="cf-mac">P {{ food.protein }}</span>{% endif %}
-          {% if food.carbs %}<span class="cf-mac">C {{ food.carbs }}</span>{% endif %}
-          {% if food.fat %}<span class="cf-mac">F {{ food.fat }}</span>{% endif %}
-        </span>
+      <summary>
+        <div class="cf-food-hd">
+          <span class="cf-food-name">
+            {{ food.name }}{% if food.amount %}<span class="cf-food-amt">· {{ food.amount }}</span>{% endif %}
+          </span>
+          <span class="cf-chips">
+            {% if food.energy %}<span class="cf-chip cf-chip-kcal">{{ food.energy }} kcal</span>{% endif %}
+            {% if food.protein %}<span class="cf-chip cf-chip-p">P {{ food.protein }}</span>{% endif %}
+            {% if food.carbs %}<span class="cf-chip cf-chip-c">C {{ food.carbs }}</span>{% endif %}
+            {% if food.fat %}<span class="cf-chip cf-chip-f">F {{ food.fat }}</span>{% endif %}
+          </span>
+        </div>
       </summary>
       {% if food.details %}
-      <div class="cf-detail">
+      <div class="cf-nutrients">
         {% for label, value in food.details %}
-        <div class="cf-dl"><span>{{ label }}</span><b>{{ value }}</b></div>
+        <div class="cf-nutr">
+          <span class="cf-nutr-name">{{ label }}</span>
+          <span class="cf-nutr-val">{{ value }}</span>
+        </div>
         {% endfor %}
       </div>
       {% else %}
-      <div class="cf-detail"><p class="metric-sub">No extra nutrients recorded for this item.</p></div>
+      <div style="padding:0.6rem 1.4rem 0.8rem 2.6rem;font-size:0.78rem;color:var(--faint);background:var(--bg);border-top:1px solid var(--border-soft)">No extra nutrients recorded.</div>
       {% endif %}
     </details>
     {% endfor %}
   </details>
   {% endfor %}
-  <p class="metric-sub">{{ view.count }} food entries · last {{ days }} days · pulled live from Cronometer.</p>
+
+  <p class="metric-sub" style="margin-top:0.4rem">
+    {{ view.count }} food entr{{ 'y' if view.count == 1 else 'ies' }} · {{ view.days | length }} day{{ 's' if view.days | length != 1 }} · up to 31 days cached in the dashboard.
+  </p>
 </div>
-{% else %}
-<p class="no-data">No foods were logged in Cronometer for the last {{ days }} days.</p>
+
+{% elif not error %}
+<div class="empty-state">
+  <p>No foods were logged in Cronometer for the loaded window.</p>
+  <a href="?days={{ days }}&reload=1" class="btn btn-primary" style="margin-top:0.5rem">{{ icon('flame', 16) }} Fetch from Cronometer</a>
+</div>
 {% endif %}
+
+<script>
+  /* Rotate the day-header arrow on open/close */
+  document.querySelectorAll('details.cf-day').forEach(el => {
+    el.addEventListener('toggle', () => {
+      const hd = el.querySelector('.cf-day-hd');
+      if (hd) hd.style.setProperty('--open', el.open ? '1' : '0');
+    });
+  });
+</script>
 {% endblock %}
