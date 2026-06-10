@@ -1256,5 +1256,46 @@ def client_cronometer_foods(name):
                            error=error, days=int(days), fetched_at=fetched_at)
 
 
+@app.route('/client/<path:name>/nutrition')
+def client_nutrition(name):
+    """Full nutrition page: calendar date-picker + per-day detail from Cronometer cache."""
+    name = unquote(name)
+    client = next((c for c in _load_clients() if c['name'] == name), None)
+    if client is None:
+        abort(404)
+
+    cached_view, fetched_at = _foods_cache_get(name)
+
+    # Pull 30-day calorie history + macro targets from the sheet in one call.
+    cal_by_date: dict = {}
+    targets: dict = {}
+    try:
+        service = sc.authenticate()
+        extra = sc.fetch_ranges(service, client['spreadsheet_id'],
+                                ['Weight!A2:A', 'Weight!J2:J',
+                                 "'⚙ Targets'!B2:B6"])
+        wdates = _parse_dates(_col(extra.get('Weight!A2:A', [])))
+        wcals  = _parse_floats(_col(extra.get('Weight!J2:J', [])))
+        today_d = date.today()
+        cutoff  = today_d - timedelta(days=31)
+        for d_, c_ in zip(wdates, wcals):
+            if d_ is not None and c_ is not None and d_ >= cutoff:
+                cal_by_date[d_.isoformat()] = round(c_, 1)
+
+        tvals = _col(extra.get("'⚙ Targets'!B2:B6", []))
+        tfl   = _parse_floats(tvals)
+        keys  = ['calories', 'protein', 'carbs', 'fat', 'fiber']
+        targets = {k: tfl[i] for i, k in enumerate(keys) if i < len(tfl) and tfl[i] is not None}
+    except Exception as exc:
+        logger.warning('Nutrition page sheet fetch failed for %s: %s', name, exc)
+
+    return render_template('cronometer_nutrition.html',
+                           client=client,
+                           view=cached_view,
+                           fetched_at=fetched_at,
+                           cal_by_date=cal_by_date,
+                           targets=targets)
+
+
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000, debug=False)

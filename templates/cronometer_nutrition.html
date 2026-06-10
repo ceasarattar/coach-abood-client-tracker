@@ -1,0 +1,488 @@
+{% extends 'base.html' %}
+{% from '_icons.html' import icon %}
+{% block title %}Nutrition · {{ client.name }}{% endblock %}
+{% block crumbs %}
+  <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span>
+  <a href="{{ url_for('client_detail', name=client.name) }}">{{ client.name }}</a><span class="sep">/</span>
+  <span class="here">Nutrition</span>
+{% endblock %}
+
+{% block content %}
+<style>
+/* ── Nutrition page ──────────────────────────────────────────────────────── */
+.nutr-header { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:1.2rem; flex-wrap:wrap; }
+.nutr-meta { display:flex; align-items:center; gap:0.6rem; font-size:0.78rem; color:var(--muted); margin-top:0.3rem; }
+.nutr-meta-dot { width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);flex-shrink:0; }
+
+/* ── Two-col layout ──────────────────────────────────────────────────────── */
+.nutr-layout { display:grid; grid-template-columns:1fr 280px; gap:var(--gap); align-items:start; }
+@media(max-width:860px){ .nutr-layout { grid-template-columns:1fr; } }
+
+/* ── Calendar ────────────────────────────────────────────────────────────── */
+.cal-wrap { background:var(--surface); border:1px solid var(--border-soft); border-radius:var(--radius); padding:1rem; position:sticky; top:1.5rem; }
+.cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.8rem; }
+.cal-title { font-weight:700; font-size:0.9rem; letter-spacing:-0.01em; }
+.cal-btn { background:none; border:none; color:var(--muted); cursor:pointer; padding:0.25rem 0.5rem; border-radius:6px; font-size:1rem; line-height:1; transition:background 0.12s,color 0.12s; }
+.cal-btn:hover { background:var(--surface-2); color:var(--text); }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.cal-dow { text-align:center; font-size:0.62rem; font-weight:700; color:var(--faint); text-transform:uppercase; padding:0.25rem 0; }
+.cal-cell { aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; font-size:0.8rem; font-weight:500; color:var(--text-2); transition:background 0.1s,color 0.1s; position:relative; }
+.cal-cell:hover:not(.cal-empty) { background:var(--surface-2); color:var(--text); }
+.cal-cell.cal-empty { cursor:default; color:var(--faint); }
+.cal-cell.has-data { color:var(--text); font-weight:650; }
+.cal-cell.has-data::after { content:''; position:absolute; bottom:3px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--accent); }
+.cal-cell.is-today { box-shadow:inset 0 0 0 1.5px var(--border-strong); color:var(--text); }
+.cal-cell.is-selected { background:var(--accent); color:var(--accent-ink) !important; font-weight:700; }
+.cal-cell.is-selected::after { background:var(--accent-ink); }
+.cal-legend { display:flex; gap:0.8rem; margin-top:0.75rem; font-size:0.7rem; color:var(--muted); }
+.cal-legend span { display:flex; align-items:center; gap:0.35rem; }
+.cal-legend-dot { width:6px;height:6px;border-radius:50%;background:var(--accent); flex-shrink:0; }
+
+/* ── Day detail ──────────────────────────────────────────────────────────── */
+.day-panel { background:var(--surface); border:1px solid var(--border-soft); border-radius:var(--radius); padding:1.2rem; }
+.day-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:280px; color:var(--faint); gap:0.5rem; font-size:0.9rem; }
+
+.day-date-hd { font-size:1.3rem; font-weight:760; letter-spacing:-0.03em; margin-bottom:1rem; color:var(--text); }
+
+/* Macro bars */
+.macro-bars { display:flex; flex-direction:column; gap:0.6rem; margin-bottom:1.2rem; }
+.macro-row { display:grid; grid-template-columns:80px 1fr 70px; align-items:center; gap:0.6rem; font-size:0.82rem; }
+.macro-name { color:var(--muted); font-weight:600; }
+.macro-track { height:8px; background:var(--surface-2); border-radius:4px; overflow:hidden; }
+.macro-fill { height:100%; border-radius:4px; transition:width 0.4s; }
+.macro-fill.kcal { background:var(--accent); }
+.macro-fill.prot { background:var(--green); }
+.macro-fill.carb { background:oklch(0.780 0.100 200); }
+.macro-fill.fat  { background:var(--amber); }
+.macro-fill.over { background:var(--red); }
+.macro-nums { text-align:right; font-family:var(--mono); font-size:0.76rem; color:var(--text-2); }
+.macro-remaining { font-size:0.7rem; color:var(--muted); margin-top:0.1rem; }
+
+/* Macro summary cards (no targets) */
+.macro-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; margin-bottom:1.2rem; }
+.macro-card { background:var(--surface-2); border-radius:10px; padding:0.7rem 0.8rem; }
+.macro-card-label { font-size:0.65rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--faint); font-weight:700; margin-bottom:0.25rem; }
+.macro-card-val { font-family:var(--mono); font-size:1.1rem; font-weight:700; }
+.macro-card-val.kcal { color:var(--accent-bright); }
+.macro-card-val.prot { color:var(--green); }
+.macro-card-val.carb { color:oklch(0.780 0.100 200); }
+.macro-card-val.fat  { color:var(--amber); }
+
+/* Foods */
+.foods-section { margin-top:1rem; }
+.foods-title { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); font-weight:700; margin-bottom:0.5rem; }
+.food-item { border-top:1px solid var(--border-soft); }
+.food-item > summary { list-style:none; cursor:pointer; }
+.food-item > summary::-webkit-details-marker { display:none; }
+.food-row { display:flex; align-items:center; gap:0.6rem; padding:0.55rem 0; }
+.food-row:hover { }
+.food-row::before { content:'▸'; color:var(--muted); font-size:0.7rem; transition:transform .15s; flex-shrink:0; }
+details.food-item[open] > summary > .food-row::before { transform:rotate(90deg); }
+.food-fname { flex:1; min-width:0; font-size:0.85rem; font-weight:560; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.food-famt  { font-size:0.75rem; color:var(--muted); margin-left:0.3rem; }
+.food-chips { display:flex; gap:0.25rem; flex-shrink:0; }
+.fchip { font-family:var(--mono); font-size:0.68rem; font-weight:600; padding:0.1rem 0.38rem; border-radius:5px; border:1px solid transparent; white-space:nowrap; }
+.fchip-k { background:oklch(0.685 0.118 245/0.18); color:var(--accent-bright); border-color:oklch(0.685 0.118 245/0.28); }
+.fchip-p { background:oklch(0.745 0.140 150/0.14); color:var(--green); border-color:oklch(0.745 0.140 150/0.26); }
+.fchip-c { background:oklch(0.780 0.100 200/0.14); color:oklch(0.780 0.100 200); border-color:oklch(0.780 0.100 200/0.26); }
+.fchip-f { background:oklch(0.808 0.125 82/0.14); color:var(--amber); border-color:oklch(0.808 0.125 82/0.26); }
+
+.food-nutr { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:0 1.2rem; padding:0.3rem 0 0.7rem 1rem; background:var(--bg); border-radius:0 0 8px 8px; margin-top:2px; }
+.fn-row { display:flex; justify-content:space-between; padding:0.18rem 0; border-bottom:1px dashed var(--border-soft); font-size:0.76rem; }
+.fn-name { color:var(--muted); }
+.fn-val  { color:var(--text-2); font-family:var(--mono); font-weight:500; }
+
+/* Micro aggregate */
+.micro-section { margin-top:1.2rem; }
+.micro-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(195px,1fr)); gap:0 1.5rem; }
+.micro-row { display:flex; justify-content:space-between; padding:0.22rem 0; border-bottom:1px dashed var(--border-soft); font-size:0.78rem; }
+.micro-name { color:var(--muted); }
+.micro-val  { color:var(--text-2); font-family:var(--mono); font-weight:500; white-space:nowrap; }
+
+/* ── Calorie history chart ───────────────────────────────────────────────── */
+.chart-panel { margin-top:var(--gap); }
+</style>
+
+<span class="back-link" onclick="location.href='{{ url_for('client_detail', name=client.name) }}'">{{ icon('arrowleft', 14) }} {{ client.name }}</span>
+
+<div class="nutr-header">
+  <div>
+    <h1 class="page-title">{{ icon('flame', 22) }} Nutrition — {{ client.name }}</h1>
+    <div class="nutr-meta">
+      {% if fetched_at %}
+      <span class="nutr-meta-dot"></span>
+      <span>
+        {% if fetched_at == 'just now' %}Fetched just now{% else %}Cached · {{ fetched_at | replace('T',' ') | replace('+00:00',' UTC') }}{% endif %}
+        · up to 31 days stored
+      </span>
+      {% else %}
+      <span>No Cronometer data yet</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('client_cronometer_foods', name=client.name) }}?reload=1" class="btn btn-primary">{{ icon('flame', 15) }} Reload from Cronometer</a>
+  </div>
+</div>
+
+<div class="nutr-layout">
+
+  <!-- ── Left: day detail ──────────────────────────────────────────────── -->
+  <div>
+    <div class="day-panel" id="day-panel">
+      <div class="day-empty" id="day-empty">
+        {{ icon('flame', 32) }}
+        <span>Pick a day from the calendar</span>
+      </div>
+      <div id="day-content" style="display:none">
+        <div class="day-date-hd" id="day-title"></div>
+
+        <!-- Macro bars (shown when targets available) -->
+        <div id="macro-bars-wrap" class="macro-bars" style="display:none">
+          <div class="macro-row">
+            <span class="macro-name">Energy</span>
+            <div><div class="macro-track"><div id="bar-kcal" class="macro-fill kcal" style="width:0%"></div></div></div>
+            <span class="macro-nums" id="nums-kcal"></span>
+          </div>
+          <div class="macro-row">
+            <span class="macro-name">Protein</span>
+            <div><div class="macro-track"><div id="bar-prot" class="macro-fill prot" style="width:0%"></div></div></div>
+            <span class="macro-nums" id="nums-prot"></span>
+          </div>
+          <div class="macro-row">
+            <span class="macro-name">Carbs</span>
+            <div><div class="macro-track"><div id="bar-carb" class="macro-fill carb" style="width:0%"></div></div></div>
+            <span class="macro-nums" id="nums-carb"></span>
+          </div>
+          <div class="macro-row">
+            <span class="macro-name">Fat</span>
+            <div><div class="macro-track"><div id="bar-fat" class="macro-fill fat" style="width:0%"></div></div></div>
+            <span class="macro-nums" id="nums-fat"></span>
+          </div>
+        </div>
+
+        <!-- Macro cards (shown when no targets) -->
+        <div id="macro-cards-wrap" class="macro-cards" style="display:none">
+          <div class="macro-card"><div class="macro-card-label">Energy</div><div class="macro-card-val kcal" id="card-kcal">—</div><div style="font-size:0.65rem;color:var(--faint)">kcal</div></div>
+          <div class="macro-card"><div class="macro-card-label">Protein</div><div class="macro-card-val prot" id="card-prot">—</div><div style="font-size:0.65rem;color:var(--faint)">g</div></div>
+          <div class="macro-card"><div class="macro-card-label">Carbs</div><div class="macro-card-val carb" id="card-carb">—</div><div style="font-size:0.65rem;color:var(--faint)">g</div></div>
+          <div class="macro-card"><div class="macro-card-label">Fat</div><div class="macro-card-val fat" id="card-fat">—</div><div style="font-size:0.65rem;color:var(--faint)">g</div></div>
+        </div>
+
+        <!-- Foods -->
+        <div class="foods-section">
+          <div class="foods-title">Foods logged</div>
+          <div id="foods-list"></div>
+        </div>
+
+        <!-- Micro aggregate -->
+        <div class="micro-section" id="micro-section" style="display:none">
+          <div class="foods-title" style="margin-top:1rem">Nutrient breakdown · all foods combined</div>
+          <div class="micro-grid" id="micro-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: calendar ───────────────────────────────────────────────── -->
+  <div>
+    <div class="cal-wrap">
+      <div class="cal-nav">
+        <button class="cal-btn" id="cal-prev">&#8249;</button>
+        <span class="cal-title" id="cal-title"></span>
+        <button class="cal-btn" id="cal-next">&#8250;</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="cal-legend">
+        <span><span class="cal-legend-dot"></span> Has data</span>
+        <span style="display:flex;align-items:center;gap:0.35rem"><span style="width:6px;height:6px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--border-strong);display:inline-block"></span> Today</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── 30-day calorie chart ───────────────────────────────────────────────── -->
+<div class="panel chart-panel">
+  <div class="panel-title">Daily calories · last 30 days</div>
+  <div id="chart-cal" style="height:200px"></div>
+</div>
+
+<script>
+(function () {
+  /* ── Data ─────────────────────────────────────────────────────────────── */
+  var CRON_DAYS = {{ (view.days if view else []) | tojson }};
+  var CAL_DATA  = {{ cal_by_date | tojson }};   // {ISO: kcal}
+  var TARGETS   = {{ targets | tojson }};         // {calories,protein,carbs,fat,fiber} or {}
+
+  var HAS_TARGETS = Object.keys(TARGETS).length > 0 && !!TARGETS.calories;
+
+  /* Index Cronometer days by ISO date */
+  var CRON = {};
+  CRON_DAYS.forEach(function(day) {
+    CRON[dmyToIso(day.date)] = day;
+  });
+
+  /* ── Date helpers ─────────────────────────────────────────────────────── */
+  function dmyToIso(dmy) {
+    var p = dmy.split('/'); return p[2]+'-'+p[1]+'-'+p[0];
+  }
+  function isoToDisplay(iso) {
+    var d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  }
+  function todayIso() {
+    return new Date().toISOString().split('T')[0];
+  }
+  function fmt(n) { return n == null ? '—' : parseFloat(n).toFixed(1); }
+  function fmtI(n) { return n == null ? '—' : Math.round(n).toLocaleString(); }
+
+  /* ── Calendar ─────────────────────────────────────────────────────────── */
+  var calYear, calMonth, selectedIso = null;
+  var MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+  function initCal() {
+    var t = new Date(); calYear = t.getFullYear(); calMonth = t.getMonth();
+    document.getElementById('cal-prev').onclick = function(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCal(); };
+    document.getElementById('cal-next').onclick = function(){ calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCal(); };
+    renderCal();
+  }
+
+  function renderCal() {
+    document.getElementById('cal-title').textContent = MONTHS[calMonth] + ' ' + calYear;
+    var grid = document.getElementById('cal-grid');
+    grid.innerHTML = '';
+    var DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    DAYS.forEach(function(d){ var el=document.createElement('div'); el.className='cal-dow'; el.textContent=d; grid.appendChild(el); });
+
+    var first = new Date(calYear, calMonth, 1).getDay();
+    var daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+    var tiso = todayIso();
+
+    for (var i=0; i<first; i++) {
+      var empty = document.createElement('div'); empty.className='cal-cell cal-empty'; grid.appendChild(empty);
+    }
+    for (var d=1; d<=daysInMonth; d++) {
+      var iso = calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      var cell = document.createElement('div');
+      cell.className = 'cal-cell';
+      cell.textContent = d;
+      if (CRON[iso] || CAL_DATA[iso]) cell.classList.add('has-data');
+      if (iso === tiso) cell.classList.add('is-today');
+      if (iso === selectedIso) cell.classList.add('is-selected');
+      (function(isoDate){ cell.onclick = function(){ selectDay(isoDate); }; })(iso);
+      grid.appendChild(cell);
+    }
+  }
+
+  /* ── Day selection ────────────────────────────────────────────────────── */
+  function selectDay(iso) {
+    selectedIso = iso;
+    renderCal();
+    renderDay(iso);
+    highlightChart(iso);
+  }
+
+  function renderDay(iso) {
+    var day = CRON[iso];
+    var sheetCal = CAL_DATA[iso];
+    document.getElementById('day-empty').style.display = 'none';
+    document.getElementById('day-content').style.display = '';
+
+    /* Date header */
+    document.getElementById('day-title').textContent = isoToDisplay(iso);
+
+    if (!day && !sheetCal) {
+      document.getElementById('day-content').innerHTML =
+        '<div class="day-date-hd">'+isoToDisplay(iso)+'</div>' +
+        '<p style="color:var(--faint);font-size:0.85rem;margin-top:0.5rem">No Cronometer data for this day. Use Reload to fetch more history.</p>';
+      return;
+    }
+
+    var tot = day ? day.totals : {};
+    var kcal = tot.energy || (sheetCal || null);
+    var prot = tot.protein || null;
+    var carb = tot.carbs   || null;
+    var fat  = tot.fat     || null;
+
+    /* Macro display */
+    if (HAS_TARGETS) {
+      document.getElementById('macro-bars-wrap').style.display = '';
+      document.getElementById('macro-cards-wrap').style.display = 'none';
+      setBar('kcal', kcal, TARGETS.calories || null, 'kcal');
+      setBar('prot', prot, TARGETS.protein  || null, 'g');
+      setBar('carb', carb, TARGETS.carbs    || null, 'g');
+      setBar('fat',  fat,  TARGETS.fat      || null, 'g');
+    } else {
+      document.getElementById('macro-bars-wrap').style.display = 'none';
+      document.getElementById('macro-cards-wrap').style.display = '';
+      document.getElementById('card-kcal').textContent = kcal != null ? fmtI(kcal) : '—';
+      document.getElementById('card-prot').textContent = prot != null ? fmt(prot) : '—';
+      document.getElementById('card-carb').textContent = carb != null ? fmt(carb) : '—';
+      document.getElementById('card-fat').textContent  = fat  != null ? fmt(fat)  : '—';
+    }
+
+    /* Foods list */
+    var fl = document.getElementById('foods-list');
+    fl.innerHTML = '';
+    if (day && day.foods && day.foods.length) {
+      day.foods.forEach(function(food) {
+        var det = document.createElement('details');
+        det.className = 'food-item';
+        var sm  = document.createElement('summary');
+        var row = document.createElement('div');
+        row.className = 'food-row';
+        row.innerHTML =
+          '<span class="food-fname">'+esc(food.name)+
+            (food.amount ? ' <span class="food-famt">· '+esc(food.amount)+'</span>' : '')+
+          '</span>'+
+          '<span class="food-chips">'+
+            (food.energy  ? '<span class="fchip fchip-k">'+esc(food.energy)+' kcal</span>' : '')+
+            (food.protein ? '<span class="fchip fchip-p">P '+esc(food.protein)+'</span>' : '')+
+            (food.carbs   ? '<span class="fchip fchip-c">C '+esc(food.carbs)+'</span>'   : '')+
+            (food.fat     ? '<span class="fchip fchip-f">F '+esc(food.fat)+'</span>'     : '')+
+          '</span>';
+        sm.appendChild(row);
+        det.appendChild(sm);
+        if (food.details && food.details.length) {
+          var nutr = document.createElement('div');
+          nutr.className = 'food-nutr';
+          food.details.forEach(function(pair) {
+            if (!pair[1] || pair[1] === '0') return;
+            var r = document.createElement('div'); r.className='fn-row';
+            r.innerHTML = '<span class="fn-name">'+esc(pair[0])+'</span><span class="fn-val">'+esc(pair[1])+'</span>';
+            nutr.appendChild(r);
+          });
+          det.appendChild(nutr);
+        }
+        fl.appendChild(det);
+      });
+    } else {
+      fl.innerHTML = '<p style="color:var(--faint);font-size:0.82rem;padding:0.5rem 0">No individual food data — only daily totals from sheet.</p>';
+    }
+
+    /* Micro aggregate */
+    if (day && day.foods) {
+      var agg = {};
+      day.foods.forEach(function(food) {
+        (food.details || []).forEach(function(pair) {
+          var v = parseFloat(pair[1]);
+          if (isNaN(v) || v === 0) return;
+          agg[pair[0]] = (agg[pair[0]] || 0) + v;
+        });
+      });
+      var keys = Object.keys(agg);
+      if (keys.length) {
+        var mg = document.getElementById('micro-grid');
+        mg.innerHTML = '';
+        keys.sort().forEach(function(k) {
+          var r = document.createElement('div'); r.className='micro-row';
+          r.innerHTML = '<span class="micro-name">'+esc(k)+'</span><span class="micro-val">'+round2(agg[k])+'</span>';
+          mg.appendChild(r);
+        });
+        document.getElementById('micro-section').style.display = '';
+      } else {
+        document.getElementById('micro-section').style.display = 'none';
+      }
+    } else {
+      document.getElementById('micro-section').style.display = 'none';
+    }
+  }
+
+  function setBar(id, val, target, unit) {
+    var bar  = document.getElementById('bar-'+id);
+    var nums = document.getElementById('nums-'+id);
+    if (val == null) { bar.style.width='0%'; nums.textContent='—'; return; }
+    var consumed = parseFloat(val);
+    if (target) {
+      var pct = Math.min(consumed / target * 100, 100);
+      var over = consumed > target;
+      bar.style.width = pct+'%';
+      bar.className = 'macro-fill '+(id==='kcal'?'kcal':id==='prot'?'prot':id==='carb'?'carb':'fat')+(over?' over':'');
+      var rem = target - consumed;
+      nums.innerHTML = '<span style="color:var(--text)">'+(id==='kcal'?fmtI(consumed):fmt(consumed))+'</span>'
+        +'<span style="color:var(--faint)"> / '+(id==='kcal'?fmtI(target):fmt(target))+unit+'</span>';
+    } else {
+      bar.style.width='100%';
+      nums.textContent = (id==='kcal'?fmtI(consumed):fmt(consumed))+' '+unit;
+    }
+  }
+
+  function round2(n) { return Math.round(n*100)/100; }
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* ── Calorie chart ────────────────────────────────────────────────────── */
+  var chartDates = Object.keys(CAL_DATA).sort();
+  /* Also add Cronometer days that have totals (may not be in sheet yet) */
+  CRON_DAYS.forEach(function(day) {
+    var iso = dmyToIso(day.date);
+    if (!CAL_DATA[iso] && day.totals && day.totals.energy) {
+      chartDates.push(iso);
+      CAL_DATA[iso] = day.totals.energy;
+    }
+  });
+  chartDates.sort();
+  var chartVals = chartDates.map(function(d){ return CAL_DATA[d]; });
+
+  var PAL = { accent:'#4f9be8', amber:'#d79a52', green:'#3fb583',
+              text:'#9aa7b8', grid:'#2c313c', axis:'#3a4150', faint:'#6b7585', red:'#d95f5f' };
+
+  function buildChart(highlightIso) {
+    if (!chartDates.length) {
+      document.getElementById('chart-cal').innerHTML =
+        '<div class="ph" style="height:180px">sync Cronometer to see calorie history</div>';
+      return;
+    }
+    var colors = chartDates.map(function(d){ return d===highlightIso ? PAL.amber : PAL.accent; });
+    var opacities = chartDates.map(function(d){ return d===highlightIso ? 1 : 0.75; });
+    Plotly.react('chart-cal', [{
+      x: chartDates, y: chartVals, type: 'bar', name: 'kcal',
+      marker: { color: colors, opacity: opacities },
+      hovertemplate: '%{x|%b %d}<br><b>%{y:,.0f} kcal</b><extra></extra>',
+    }], {
+      paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+      font:{ color:PAL.text, family:'Hanken Grotesk, system-ui, sans-serif', size:11 },
+      margin:{ t:10, b:40, l:52, r:12 },
+      height: 200, bargap: 0.25,
+      xaxis:{ type:'date', tickformat:'%b %d', dtick:86400000*2,
+              gridcolor:PAL.grid, linecolor:PAL.axis, tickcolor:PAL.axis },
+      yaxis:{ gridcolor:PAL.grid, linecolor:PAL.axis, tickcolor:PAL.axis,
+              tickformat:',.0f', zeroline:false },
+      showlegend: false,
+      shapes: TARGETS.calories ? [{
+        type:'line', x0:chartDates[0], x1:chartDates[chartDates.length-1],
+        y0:TARGETS.calories, y1:TARGETS.calories,
+        line:{ color: PAL.green, width:1.5, dash:'dot' }
+      }] : [],
+      annotations: TARGETS.calories ? [{
+        x: chartDates[chartDates.length-1], y: TARGETS.calories,
+        xanchor:'right', yanchor:'bottom',
+        text: 'target '+fmtI(TARGETS.calories),
+        showarrow:false, font:{ color:PAL.green, size:10 }
+      }] : [],
+    }, { displayModeBar:false, responsive:true });
+  }
+
+  function highlightChart(iso) {
+    buildChart(iso);
+  }
+
+  /* ── Init ─────────────────────────────────────────────────────────────── */
+  buildChart(null);
+  initCal();
+
+  /* Auto-select the most recent day with Cronometer data */
+  if (CRON_DAYS.length) {
+    var latest = dmyToIso(CRON_DAYS[0].date);
+    /* Navigate calendar to that month */
+    var d = new Date(latest+'T12:00:00');
+    calYear = d.getFullYear(); calMonth = d.getMonth();
+    renderCal();
+    selectDay(latest);
+  }
+})();
+</script>
+{% endblock %}

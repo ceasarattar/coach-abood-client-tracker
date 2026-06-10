@@ -70,7 +70,9 @@
       <div id="chart-weight" class="chart-container"></div>
     </div>
     <div class="panel">
-      <div class="panel-title">Daily calories · last 30 days</div>
+      <div class="panel-title">Daily calories · last 30 days
+        <a href="{{ url_for('client_nutrition', name=d.name) }}" class="btn btn-sm btn-ghost" style="margin-left:auto">{{ icon('flame', 13) }} Full nutrition view</a>
+      </div>
       <div id="chart-calories" class="chart-container"></div>
     </div>
   </div>
@@ -200,12 +202,20 @@
   var cVals  = {{ d.cal_values | tojson }};
   if (cDates.length) {
     Plotly.newPlot('chart-calories', [{
-      x: cDates, y: cVals, type: 'bar', name: 'daily calories',
-      marker: { color: PAL.accent, opacity: 0.85 },
-    }], Object.assign({}, base, { height: 230, bargap: 0.35 }), config);
+      x: cDates, y: cVals, type: 'bar', name: 'kcal',
+      marker: { color: PAL.accent, opacity: 0.82 },
+      hovertemplate: '%{x|%b %d}<br><b>%{y:,.0f} kcal</b><extra></extra>',
+    }], Object.assign({}, base, {
+      height: 190,
+      bargap: 0.25,
+      xaxis: { type: 'date', tickformat: '%b %d', dtick: 86400000 * 3,
+               gridcolor: PAL.grid, linecolor: PAL.axis, tickcolor: PAL.axis },
+      yaxis: { gridcolor: PAL.grid, linecolor: PAL.axis, tickcolor: PAL.axis,
+               tickformat: ',.0f', zeroline: false },
+    }), config);
   } else {
     document.getElementById('chart-calories').innerHTML =
-      '<div class="ph" style="height:210px">no nutrition data in range</div>';
+      '<div class="ph" style="height:170px">sync calories from Cronometer to see this chart</div>';
   }
 })();
 </script>
