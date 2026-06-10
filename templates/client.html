@@ -71,7 +71,7 @@
     </div>
     <div class="panel">
       <div class="panel-title">Daily calories · last 30 days
-        <a href="{{ url_for('client_nutrition', name=d.name) }}" class="btn btn-sm btn-ghost" style="margin-left:auto">{{ icon('flame', 13) }} Full nutrition view</a>
+        <a href="{{ url_for('client_nutrition', name=d.name) }}" class="btn btn-sm btn-primary" style="margin-left:auto">{{ icon('flame', 13) }} Full nutrition view</a>
       </div>
       <div id="chart-calories" class="chart-container"></div>
     </div>
@@ -202,12 +202,13 @@
   var cVals  = {{ d.cal_values | tojson }};
   if (cDates.length) {
     Plotly.newPlot('chart-calories', [{
-      x: cDates, y: cVals, type: 'bar', name: 'kcal',
-      marker: { color: PAL.accent, opacity: 0.82 },
+      x: cDates, y: cVals, type: 'scatter', mode: 'lines+markers', name: 'kcal',
+      line: { color: PAL.accent, width: 2.4, shape: 'spline', smoothing: 0.6 },
+      marker: { color: PAL.accent, size: 5 },
       hovertemplate: '%{x|%b %d}<br><b>%{y:,.0f} kcal</b><extra></extra>',
+      fill: 'tozeroy', fillcolor: 'rgba(79,155,232,0.08)',
     }], Object.assign({}, base, {
       height: 190,
-      bargap: 0.25,
       xaxis: { type: 'date', tickformat: '%b %d', dtick: 86400000 * 3,
                gridcolor: PAL.grid, linecolor: PAL.axis, tickcolor: PAL.axis },
       yaxis: { gridcolor: PAL.grid, linecolor: PAL.axis, tickcolor: PAL.axis,

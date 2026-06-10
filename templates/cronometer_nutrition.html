@@ -436,17 +436,27 @@ details.food-item[open] > summary > .food-row::before { transform:rotate(90deg);
         '<div class="ph" style="height:180px">sync Cronometer to see calorie history</div>';
       return;
     }
-    var colors = chartDates.map(function(d){ return d===highlightIso ? PAL.amber : PAL.accent; });
-    var opacities = chartDates.map(function(d){ return d===highlightIso ? 1 : 0.75; });
-    Plotly.react('chart-cal', [{
-      x: chartDates, y: chartVals, type: 'bar', name: 'kcal',
-      marker: { color: colors, opacity: opacities },
+    var hiIdx = highlightIso ? chartDates.indexOf(highlightIso) : -1;
+    var traces = [{
+      x: chartDates, y: chartVals, type: 'scatter', mode: 'lines+markers', name: 'kcal',
+      line: { color: PAL.accent, width: 2.4, shape: 'spline', smoothing: 0.6 },
+      marker: { color: PAL.accent, size: 5 },
+      fill: 'tozeroy', fillcolor: 'rgba(79,155,232,0.08)',
       hovertemplate: '%{x|%b %d}<br><b>%{y:,.0f} kcal</b><extra></extra>',
-    }], {
+    }];
+    if (hiIdx >= 0) {
+      traces.push({
+        x: [chartDates[hiIdx]], y: [chartVals[hiIdx]],
+        type: 'scatter', mode: 'markers', name: 'selected',
+        marker: { color: PAL.amber, size: 10, line: { color: '#fff', width: 2 } },
+        hovertemplate: '%{x|%b %d}<br><b>%{y:,.0f} kcal</b><extra></extra>',
+      });
+    }
+    Plotly.react('chart-cal', traces, {
       paper_bgcolor:'transparent', plot_bgcolor:'transparent',
       font:{ color:PAL.text, family:'Hanken Grotesk, system-ui, sans-serif', size:11 },
       margin:{ t:10, b:40, l:52, r:12 },
-      height: 200, bargap: 0.25,
+      height: 200,
       xaxis:{ type:'date', tickformat:'%b %d', dtick:86400000*2,
               gridcolor:PAL.grid, linecolor:PAL.axis, tickcolor:PAL.axis },
       yaxis:{ gridcolor:PAL.grid, linecolor:PAL.axis, tickcolor:PAL.axis,
