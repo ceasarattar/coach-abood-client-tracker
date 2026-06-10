@@ -221,13 +221,11 @@
   <span class="cf-meta-dot"></span>
   <span>
     {% if fetched_at == 'just now' %}
-      Fetched just now
+      Fetched just now · up to 31 days cached in the dashboard
     {% else %}
-      Cached · last fetched {{ fetched_at | replace('T', ' ') | replace('+00:00', ' UTC') }}
+      Cached · last fetched {{ fetched_at | replace('T', ' ') | replace('+00:00', ' UTC') }} · up to 31 days stored
     {% endif %}
-    · showing up to 31 days
   </span>
-  <a href="?days={{ days }}&reload=1" class="inline-link" style="font-size:0.78rem">Refresh now</a>
 </div>
 {% endif %}
 

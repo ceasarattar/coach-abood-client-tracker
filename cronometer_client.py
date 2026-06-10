@@ -17,7 +17,10 @@ Returns a list of daily rows:
 """
 import csv
 import io
+import logging
 import datetime as _dt
+
+logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------
 # CONFIG — the only place selectors / URLs should need editing.
@@ -46,6 +49,41 @@ def _match_col(headers, *needles):
     return None
 
 
+def _energy_col(headers):
+    """
+    Find the *total* daily energy column.
+
+    Cronometer's CSV can contain multiple energy-related columns:
+    "Energy (kcal)", "Energy from Fat (kcal)", "Calories from Fat", etc.
+    A naive `_match_col(headers, "energy", "kcal")` returns the first match,
+    which may be a per-macro derived column rather than the daily total.
+
+    Strategy (first wins):
+      1. Case-insensitive exact match against known total-energy names.
+      2. Shortest column whose lowercase name *starts with* "energy" or "calorie"
+         (avoids "Energy from Fat" which starts with "energy from").
+      3. Fall back to original broad search.
+    """
+    # 1. Known exact names Cronometer uses for the daily total
+    _EXACT = ("energy (kcal)", "energy (cal)", "calories", "total calories",
+              "energy", "kcal")
+    hl_map = {h.lower().strip(): h for h in headers}
+    for name in _EXACT:
+        if name in hl_map:
+            return hl_map[name]
+
+    # 2. Shortest column starting with "energy" or "calorie/calories"
+    candidates = [h for h in headers
+                  if h.lower().strip().startswith(("energy", "calorie"))]
+    if candidates:
+        return min(candidates, key=len)   # "Energy (kcal)" shorter than "Energy from Fat (kcal)"
+
+    # 3. Broad fallback (original behaviour)
+    return (_match_col(headers, "energy", "kcal")
+            or _match_col(headers, "calorie")
+            or _match_col(headers, "energy"))
+
+
 def _to_float(val):
     try:
         return float(str(val).replace(",", "").strip())
@@ -67,8 +105,13 @@ def _norm_date(val):
 def parse_daily_nutrition_csv(text: str) -> list:
     """
     Parse a Cronometer 'Daily Nutrition' style CSV into normalised daily rows.
-    Columns are matched by name (order-independent), so minor export changes
-    don't break it.
+
+    Columns are matched by name using _energy_col() for the total energy column
+    (avoids picking "Energy from Fat (kcal)" over "Energy (kcal)").
+
+    Multiple rows for the same date are summed — Cronometer can emit one row per
+    meal group (Breakfast / Lunch / Dinner / Snacks / Uncategorized) for the same
+    day, in which case naively taking the last row would silently under-report.
     """
     reader = csv.DictReader(io.StringIO(text))
     headers = reader.fieldnames or []
@@ -76,8 +119,7 @@ def parse_daily_nutrition_csv(text: str) -> list:
         return []
 
     c_date = _match_col(headers, "date")
-    c_cals = (_match_col(headers, "energy", "kcal") or _match_col(headers, "calorie")
-              or _match_col(headers, "energy"))
+    c_cals = _energy_col(headers)
     c_prot = _match_col(headers, "protein")
     c_carb = _match_col(headers, "carb")
     # Prefer a plain "Fat (g)" over "Saturated Fat (g)" etc.
@@ -85,20 +127,30 @@ def parse_daily_nutrition_csv(text: str) -> list:
              or _match_col(headers, "fat"))
     c_fiber = _match_col(headers, "fiber") or _match_col(headers, "fibre")
 
-    out = []
+    logger.debug("parse_daily_nutrition_csv columns: date=%s cals=%s prot=%s carb=%s fat=%s fiber=%s",
+                 c_date, c_cals, c_prot, c_carb, c_fat, c_fiber)
+
+    # Accumulate per date — handles both 1-row-per-day and meal-group formats.
+    totals: dict = {}   # iso -> {date, calories, protein, carbs, fat, fiber}
+    order: list = []
+
     for row in reader:
         iso = _norm_date(row.get(c_date, "")) if c_date else None
         if not iso:
             continue
-        out.append({
-            "date": iso,
-            "calories": _to_float(row.get(c_cals)) if c_cals else None,
-            "protein": _to_float(row.get(c_prot)) if c_prot else None,
-            "carbs": _to_float(row.get(c_carb)) if c_carb else None,
-            "fat": _to_float(row.get(c_fat)) if c_fat else None,
-            "fiber": _to_float(row.get(c_fiber)) if c_fiber else None,
-        })
-    return out
+        if iso not in totals:
+            totals[iso] = {"date": iso,
+                           "calories": None, "protein": None,
+                           "carbs": None, "fat": None, "fiber": None}
+            order.append(iso)
+        entry = totals[iso]
+        for field, col in (("calories", c_cals), ("protein", c_prot),
+                           ("carbs", c_carb), ("fat", c_fat), ("fiber", c_fiber)):
+            v = _to_float(row.get(col)) if col else None
+            if v is not None:
+                entry[field] = (entry[field] or 0.0) + v
+
+    return list(totals[iso] for iso in order)
 
 
 def parse_servings_csv(text: str) -> dict:

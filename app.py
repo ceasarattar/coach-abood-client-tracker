@@ -48,6 +48,7 @@ app = Flask(__name__)
 app.secret_key = (os.environ.get('SECRET_KEY')
                   or os.environ.get('FLASK_SECRET')
                   or 'coach-abood-local-dev-secret')
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # Shared passcode that gates the whole app once it is hosted publicly.
 # If unset (local dev), the gate is disabled so nothing blocks development.
