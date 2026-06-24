@@ -339,26 +339,83 @@ def _days_since_last(date_list: list):
 
 
 # ---------------------------------------------------------------------------
-# Concurrency + caching
+# Caching (NO concurrency — see HANDOFF_CLAUDE.md)
 #
-# The dashboard reads several client sheets per page. A process-local TTL cache
-# (cache.store) plus a bounded thread pool turn the old "~3 sequential Sheets
-# calls per client on every navigation" into "fetch once per TTL window, in
-# parallel" — the fix for the sluggish, inconsistent navigation (issue #7).
-# Render runs a single worker, so the cache and pool are shared app-wide.
+# The dashboard reads several client sheets per page. Render's 512MB free tier
+# OOM-crashed whenever Sheets reads ran in parallel (the old ThreadPoolExecutor),
+# so loading is deliberately SEQUENTIAL on a single worker. A process-local TTL
+# cache (cache.store) is what keeps it fast: "fetch once per TTL window" instead
+# of "re-fetch everything on every navigation" (issue #7). Per client the cost
+# is one combined batchGet (see _fetch_card_combined) plus a long-cached tab
+# list — do NOT reintroduce threads to speed this up.
 # ---------------------------------------------------------------------------
 
-CACHE_TTL = 90  # seconds a client's fetched Sheets data stays fresh
+CACHE_TTL = 300       # seconds a client's fetched Sheets data stays fresh
+TAB_CACHE_TTL = 1800  # tab titles change only when a program is (re)generated
+
+
+def _cached_tab_names(service, spreadsheet_id: str) -> list:
+    """Cached list of every tab title in a sheet.
+
+    Tab titles change only when a program is generated, so they live far
+    longer than per-navigation data. Caching them removes one Sheets
+    round-trip (spreadsheets.get) from every dashboard card load. Invalidated
+    by _invalidate_client_cache on any write.
+    """
+    return cache.store.get_or_fetch(
+        f'tabs:{spreadsheet_id}', TAB_CACHE_TTL,
+        lambda: sc.get_sheet_tab_names(service, spreadsheet_id))
+
 
 def _card_bundle(spreadsheet_id: str) -> dict:
     """Cached per-sheet bundle for a client: weight/nutrition data + last workout."""
     def load():
         service = sc.authenticate()
-        return {
-            'data': sc.fetch_client_data(service, spreadsheet_id),
-            'last_logged': _last_logged_workout(service, spreadsheet_id),
-        }
+        try:
+            # Fast path: one batchGet covering the weight/nutrition ranges AND
+            # every Week tab's client-date column, using the cached tab list.
+            # Collapses a cold card load from three sequential Sheets
+            # round-trips (data + tab list + week cols) down to one.
+            data, last_logged = _fetch_card_combined(service, spreadsheet_id)
+        except Exception:
+            # Any failure (e.g. a named range 404 on an older sheet) degrades to
+            # the proven split path, which has its own per-range fallback.
+            logger.warning('combined card fetch failed for %s; using split path',
+                           spreadsheet_id, exc_info=True)
+            data = sc.fetch_client_data(service, spreadsheet_id)
+            last_logged = _last_logged_workout(service, spreadsheet_id)
+        return {'data': data, 'last_logged': last_logged}
     return cache.store.get_or_fetch(f'card:{spreadsheet_id}', CACHE_TTL, load)
+
+
+def _fetch_card_combined(service, spreadsheet_id: str):
+    """One batchGet covering client data ranges + every Week tab's col G.
+
+    Returns (data_dict, last_logged) matching the shapes from
+    fetch_client_data() and _last_logged_workout(). Raises on any Sheets error
+    so the caller can fall back to the split path.
+    """
+    week_tabs = [t for t in _cached_tab_names(service, spreadsheet_id)
+                 if t.lower().startswith('week ')]
+    client_ranges = (list(sc.CLIENT_NAMED_RANGES)
+                     + [sc.WEIGHT_CALORIES_RANGE, sc.WEIGHT_SLEEP_RANGE])
+    week_ranges = [f"'{t}'!G1:G" for t in week_tabs]
+    raw = sc.fetch_ranges(service, spreadsheet_id, client_ranges + week_ranges)
+
+    data = {name: raw.get(name, []) for name in sc.CLIENT_NAMED_RANGES}
+    data['WeightCalories'] = raw.get(sc.WEIGHT_CALORIES_RANGE, [])
+    data['WeightSleep'] = raw.get(sc.WEIGHT_SLEEP_RANGE, [])
+
+    latest = None
+    for rng in week_ranges:
+        for d in _parse_dates(_col(raw.get(rng, []))):
+            if d and (latest is None or d > latest):
+                latest = d
+    last_logged = None if latest is None else {
+        'date': latest.strftime('%d/%m/%Y'),
+        'days_ago': (date.today() - latest).days,
+    }
+    return data, last_logged
 
 
 def _cached_payments(service, master_id: str) -> list:
@@ -379,6 +436,7 @@ def _invalidate_client_cache(spreadsheet_id: str, master_id: str = '') -> None:
     """Drop cached reads for a sheet after a write, so the next page is fresh."""
     cache.store.invalidate(f'card:{spreadsheet_id}')
     cache.store.invalidate(f'weeks:{spreadsheet_id}')
+    cache.store.invalidate(f'tabs:{spreadsheet_id}')
     if master_id:
         cache.store.invalidate(f'payments:{master_id}')
 
@@ -434,7 +492,7 @@ def _last_logged_workout(service, spreadsheet_id: str):
     returns {'date': 'dd/mm/yyyy', 'days_ago': N} or None if nothing logged.
     """
     try:
-        tabs = [t for t in sc.get_sheet_tab_names(service, spreadsheet_id)
+        tabs = [t for t in _cached_tab_names(service, spreadsheet_id)
                 if t.lower().startswith('week ')]
     except HttpError as exc:
         logger.error('Tab list failed for %s: %s', spreadsheet_id, exc)
@@ -463,7 +521,7 @@ def _week_summary(service, spreadsheet_id: str) -> list:
     their client input area (col G). Returns a list of dicts for the table.
     """
     try:
-        tabs = [t for t in sc.get_sheet_tab_names(service, spreadsheet_id)
+        tabs = [t for t in _cached_tab_names(service, spreadsheet_id)
                 if t.lower().startswith('week ')]
     except HttpError:
         return []
