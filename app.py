@@ -225,7 +225,7 @@ def _webapp_config() -> tuple:
 
 
 def trigger_template_generation(config=None, request_id=None,
-                                timeout: int = 120) -> dict:
+                                timeout: int = 90) -> dict:
     """
     POST to the Apps Script web app to generate a client file.
 
