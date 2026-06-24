@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 # Disabled automatically when APP_PASSCODE is unset (local development).
 # ---------------------------------------------------------------------------
 
-_PUBLIC_ENDPOINTS = {'login', 'logout', 'health', 'static', 'service_worker', 'reauth'}
+_PUBLIC_ENDPOINTS = {'login', 'logout', 'health', 'warm', 'static', 'service_worker', 'reauth'}
 
 
 def _csrf_token() -> str:
@@ -781,6 +781,33 @@ def reauth():
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok'})
+
+
+@app.route('/warm')
+def warm():
+    """Pre-fill the dashboard cache so the coach's first load is instant.
+
+    Designed to be hit on a schedule (point the keep-warm cron here instead of,
+    or alongside, /health). It reuses the same TTL cache, so pings within the
+    TTL window do zero Sheets work — and each ping refreshes the data that the
+    dashboard would otherwise fetch on a cold load. Read-only and public (like
+    /health): it only populates cache, never writes. For the dashboard to stay
+    continuously warm, ping at an interval <= CACHE_TTL.
+    """
+    try:
+        service = sc.authenticate()
+    except Exception as exc:
+        # Sheets not configured / transient auth issue — nothing to warm.
+        return jsonify({'warmed': 0, 'error': str(exc)}), 200
+    _cached_payments(service, master_sheet_id())
+    warmed = 0
+    for c in _load_clients(active_only=True):
+        try:
+            _card_bundle(c['spreadsheet_id'])
+            warmed += 1
+        except Exception:
+            logger.warning('warm failed for %s', c['name'], exc_info=True)
+    return jsonify({'warmed': warmed})
 
 
 # ---------------------------------------------------------------------------
