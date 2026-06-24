@@ -51,7 +51,9 @@
           <button type="button" class="btn btn-sm btn-ghost" style="padding:1px 6px;line-height:1" title="Move down" onclick="moveSession(this,1)">▼</button>
         </div>
         <input type="text" name="session_label" list="session-type-list" value="{{ s.workout_type }}"
-               placeholder="e.g. Push, Full Body A" style="flex:1" oninput="updateSessionDatalist()">
+               placeholder="e.g. Push, Full Body A" style="flex:1" oninput="updateSessionDatalist()"
+               onfocus="this.dataset.prev=this.value;this.value=''"
+               onblur="if(!this.value)this.value=this.dataset.prev||''">
         <button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeSession(this)">{{ icon('trash', 13) }}</button>
       </div>
       {% endfor %}
@@ -122,7 +124,7 @@ function addSession() {
       '<button type="button" class="btn btn-sm btn-ghost" style="padding:1px 6px;line-height:1" title="Move up" onclick="moveSession(this,-1)">▲</button>' +
       '<button type="button" class="btn btn-sm btn-ghost" style="padding:1px 6px;line-height:1" title="Move down" onclick="moveSession(this,1)">▼</button>' +
     '</div>' +
-    '<input type="text" name="session_label" list="session-type-list" placeholder="e.g. Push, Full Body A" style="flex:1" oninput="updateSessionDatalist()">' +
+    '<input type="text" name="session_label" list="session-type-list" placeholder="e.g. Push, Full Body A" style="flex:1" oninput="updateSessionDatalist()" onfocus="this.dataset.prev=this.value;this.value=\'\'" onblur="if(!this.value)this.value=this.dataset.prev||\'\'"> ' +
     '<button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeSession(this)">✕</button>';
   list.appendChild(row);
   row.querySelector('input').focus();
