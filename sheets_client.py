@@ -86,16 +86,21 @@ class SheetsNotConfigured(FileNotFoundError):
 
 def _service_account_info():
     """Return the service-account dict from the env var or local file, or None."""
+    global _sa_info_cache
+    if _sa_info_cache is not None:
+        return _sa_info_cache
     raw = os.environ.get(SERVICE_ACCOUNT_ENV, '').strip()
     if raw:
         try:
-            return json.loads(raw)
+            _sa_info_cache = json.loads(raw)
+            return _sa_info_cache
         except json.JSONDecodeError as exc:
             raise SheetsNotConfigured(
                 f'{SERVICE_ACCOUNT_ENV} is set but is not valid JSON: {exc}') from exc
     if os.path.exists(SERVICE_ACCOUNT_FILE):
         with open(SERVICE_ACCOUNT_FILE, encoding='utf-8') as fh:
-            return json.load(fh)
+            _sa_info_cache = json.load(fh)
+            return _sa_info_cache
     return None
 
 
@@ -116,8 +121,9 @@ def service_account_email() -> str:
     return (info or {}).get('client_email', '')
 
 
-# Cache the built service so the key is not reparsed on every request.
+# Cache the built service and the parsed service-account dict.
 _service_cache = None
+_sa_info_cache = None
 
 
 def authenticate(force: bool = False):
