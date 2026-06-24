@@ -29,10 +29,11 @@ _MISS = object()
 
 
 class TTLCache:
-    def __init__(self) -> None:
+    def __init__(self, max_keys: int = 100) -> None:
         self._store: dict = {}     # key -> (expires_at_monotonic, value)
         self._locks: dict = {}     # key -> threading.Lock (per-key anti-stampede)
         self._guard = threading.Lock()
+        self._max_keys = max_keys
 
     def _key_lock(self, key: str) -> threading.Lock:
         with self._guard:
@@ -60,6 +61,10 @@ class TTLCache:
 
     def set(self, key: str, value, ttl: float) -> None:
         self._store[key] = (time.monotonic() + ttl, value)
+        if len(self._store) > self._max_keys:
+            # Evict the soonest-to-expire entry to stay under the cap.
+            oldest = min(self._store, key=lambda k: self._store[k][0])
+            self._store.pop(oldest, None)
 
     def get_or_fetch(self, key: str, ttl: float, loader, stale_on_error: bool = True):
         """
