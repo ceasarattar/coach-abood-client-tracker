@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% from '_icons.html' import icon %}
+{% block title %}Edit {{ client.name }} · Coach Khader{% endblock %}
+{% block crumbs %}
+  <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span>
+  <a href="{{ url_for('client_detail', name=client.name) }}">{{ client.name }}</a><span class="sep">/</span>
+  <span class="here">Edit</span>
+{% endblock %}
+
+{% block content %}
+<span class="back-link" onclick="location.href='{{ url_for('client_detail', name=client.name) }}'">{{ icon('arrowleft', 14) }} {{ client.name }}</span>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Edit client</h1>
+    <p class="page-sub">Update the registry record. Renaming also moves their Cronometer login and nutrition cache.</p>
+  </div>
+</div>
+
+<form method="post" class="panel" style="max-width:620px">
+  {{ csrf_input() }}
+  <label class="field">
+    <span class="field-label">Client name <span class="req">*</span></span>
+    <input type="text" name="name" value="{{ form.get('name', client.name) }}" required placeholder="e.g. Ceasar Attar">
+    <span class="field-hint">must match the master Payments tab</span>
+  </label>
+  <label class="field">
+    <span class="field-label">{{ icon('link', 14) }} Google Sheet URL or ID</span>
+    <input type="text" name="sheet" class="mono" value="{{ form.get('sheet', client.spreadsheet_id) }}" placeholder="https://docs.google.com/spreadsheets/d/…">
+    <span class="field-hint">leave as-is to keep the current sheet</span>
+  </label>
+  <div class="field-row">
+    <label class="field"><span class="field-label">Monthly plan ($)</span>
+      <input type="number" name="plan" min="0" step="1" class="num narrow" value="{{ form.get('plan', client.plan_usd) }}"></label>
+    <label class="field"><span class="field-label">Weight unit</span>
+      <select name="weight_unit">
+        <option value="kg" {{ 'selected' if (form.get('weight_unit', client.weight_unit)) == 'kg' }}>kg</option>
+        <option value="lbs" {{ 'selected' if (form.get('weight_unit', client.weight_unit)) == 'lbs' }}>lbs</option>
+      </select></label>
+  </div>
+
+  <button type="button" class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="document.getElementById('adv').hidden = !document.getElementById('adv').hidden">
+    {{ icon('chevright', 13) }} Advanced
+  </button>
+  <div id="adv" hidden style="margin-top:0.8rem">
+    <label class="field">
+      <span class="field-label">Master sheet ID (override)</span>
+      <input type="text" name="master_sheet" class="mono" value="{{ form.get('master_sheet', client.master_spreadsheet_id) }}" placeholder="leave blank to use the default master">
+    </label>
+  </div>
+
+  <div class="form-actions" style="margin-top:1.2rem">
+    <button type="submit" class="btn btn-primary">{{ icon('check', 16) }} Save changes</button>
+    <a href="{{ url_for('client_detail', name=client.name) }}" class="btn btn-ghost">Cancel</a>
+  </div>
+</form>
+{% endblock %}

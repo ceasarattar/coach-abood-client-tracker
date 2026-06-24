@@ -10,17 +10,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}Coach Abood · Control Panel{% endblock %}</title>
+  <title>{% block title %}Coach Khader · Control Panel{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;550;600;650;700;750;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <!-- Date picker (vendored, offline) — gives a dd/mm/yyyy calendar in every
+       browser, including Safari/macOS where <input type=date> shows none. -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/flatpickr.min.css') }}" />
   <!-- PWA: installable as a desktop/phone app -->
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}" />
-  <meta name="theme-color" content="#15171d" />
+  <meta name="theme-color" content="#f7f5f2" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Coach Abood" />
+  <meta name="apple-mobile-web-app-title" content="Coach Khader" />
   <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='icons/icon-512.png') }}" />
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}" />
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
@@ -30,9 +33,9 @@
     <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
     <aside class="sidebar">
       <a href="{{ url_for('index') }}" class="brand">
-        <div class="brand-mark">CA</div>
+        <div class="brand-mark">CK</div>
         <div>
-          <div class="brand-name">Coach Abood</div>
+          <div class="brand-name">Coach Khader</div>
           <div class="brand-sub">control panel</div>
         </div>
       </a>
@@ -94,6 +97,20 @@
   {% endwith %}
 
   {% block scripts %}{% endblock %}
+
+  <!-- Date picker: dd/mm/yyyy everywhere, consistent across browsers + OSes -->
+  <script src="{{ url_for('static', filename='vendor/flatpickr.min.js') }}"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (window.flatpickr) {
+        flatpickr('.js-date', {
+          dateFormat: 'd/m/Y',
+          allowInput: true,
+          disableMobile: true   // always use the dd/mm/yyyy picker, never the OS one
+        });
+      }
+    });
+  </script>
 
   <!-- Register the service worker so the app is installable -->
   <script>

@@ -79,3 +79,16 @@ def delete_credentials(client_name: str) -> bool:
         _write_all(data)
         return True
     return False
+
+
+def rename_credentials(old_name: str, new_name: str) -> bool:
+    """Move a client's stored creds from old_name to new_name. Returns True if
+    moved. Keeps Cronometer logins attached when a client is renamed (otherwise
+    they would be orphaned, since creds are keyed by name)."""
+    data = _read_all()
+    old_key = old_name.strip().lower()
+    if old_key not in data:
+        return False
+    data[new_name.strip().lower()] = data.pop(old_key)
+    _write_all(data)
+    return True

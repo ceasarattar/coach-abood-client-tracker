@@ -137,24 +137,24 @@
     border: 1px solid transparent;
   }
   .cf-chip-kcal {
-    background: oklch(0.685 0.118 245 / 0.18);
+    background: color-mix(in oklab, var(--accent) 14%, transparent);
     color: var(--accent-bright);
-    border-color: oklch(0.685 0.118 245 / 0.3);
+    border-color: color-mix(in oklab, var(--accent) 30%, transparent);
   }
   .cf-chip-p {
-    background: oklch(0.745 0.140 150 / 0.14);
+    background: var(--green-dim);
     color: var(--green);
-    border-color: oklch(0.745 0.140 150 / 0.28);
+    border-color: color-mix(in oklab, var(--green) 30%, transparent);
   }
   .cf-chip-c {
-    background: oklch(0.780 0.100 200 / 0.14);
-    color: oklch(0.780 0.100 200);
-    border-color: oklch(0.780 0.100 200 / 0.28);
+    background: color-mix(in oklab, var(--carb) 14%, transparent);
+    color: var(--carb);
+    border-color: color-mix(in oklab, var(--carb) 30%, transparent);
   }
   .cf-chip-f {
-    background: oklch(0.808 0.125 82 / 0.14);
+    background: var(--amber-dim);
     color: var(--amber);
-    border-color: oklch(0.808 0.125 82 / 0.28);
+    border-color: color-mix(in oklab, var(--amber) 30%, transparent);
   }
 
   /* Nutrient detail grid */

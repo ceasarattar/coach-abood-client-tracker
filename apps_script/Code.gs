@@ -1,45 +1,45 @@
 /************************************************************************
- * COACH ABOOD LLC — CLIENT TEMPLATE GENERATOR  (v8)
+ * COACH KHADER — CLIENT TEMPLATE GENERATOR  (v9)
  *
- * v8 fixes the Weight tab: the new sheet is created with a day-first (en_GB)
- * locale and the "Week #" / averages formulas no longer use DATEVALUE (which
- * mis-parsed dd/MM/yyyy under a US locale and produced wrong weeks then #VALUE!).
- * Dates render dd/MM/yyyy everywhere (Weight, Nutrition, Week-tab Date columns).
+ * v9 (dynamic sessions + config-in-POST):
+ *   - The Flask wizard now sends ALL client data inline in the POST body
+ *     (config-in-POST). The Apps Script no longer needs to read the master
+ *     ⚙ admin tabs on the one-click path — it receives a fully-formed config.
+ *   - Sessions are dynamic and ordered (no weekday lock). Each session has a
+ *     custom label (e.g. "Full Body A") and its own exercises.
+ *   - Idempotency via requestId: a repeated POST with the same requestId
+ *     returns the cached sheet URL immediately — fixes the orphan-sheet race
+ *     when the Flask request timed out and the user retried.
+ *   - Trash-on-error: if generation fails mid-way the partial file is moved
+ *     to Drive trash so no orphan is left.
+ *   - Sheets are shared as "anyone with link can edit" so non-Google clients
+ *     (Hotmail, Outlook, …) can open them without a Google account.
+ *   - Coach name changed to "Coach Khader" everywhere.
+ *   - The menu path (Coach Tools → Generate Client Template) still reads the
+ *     master ⚙ admin tabs as before and is unchanged.
  *
- * v7 adds a WEB APP entry point so the Flask dashboard can generate a client
- * file automatically (fill master tabs -> POST here -> get the new sheet URL
- * back -> auto-register). The menu version (Coach Tools -> Generate Client
- * Template) is unchanged.
+ * v8 fixes the Weight tab locale (en_GB, dd/MM/yyyy) and Week # formula.
+ * v7 adds the web-app entry point for one-click generation from the dashboard.
  *
- * DEPLOY AS WEB APP:
- *   1. Set WEBAPP_SECRET below to a long random string (keep it private).
- *   2. Deploy -> New deployment -> type "Web app".
- *        Execute as:  Me (the master sheet owner)
- *        Who has access:  Anyone
- *   3. Copy the /exec URL. Put it + the secret in the dashboard's .env:
- *        TEMPLATE_WEBAPP_URL=https://script.google.com/macros/s/XXXX/exec
- *        TEMPLATE_WEBAPP_SECRET=<the same secret>
- *   4. Re-deploy after any code change (Manage deployments -> Edit -> New version).
- *
- * The web app reads the SAME master admin tabs the Flask wizard fills in, so the
- * flow is: Flask writes ⚙ tabs via Sheets API -> Flask POSTs here -> this runs
- * generation as the sheet owner -> returns {ok, url, id, fileName, sharedWith}.
+ * DEPLOY AS WEB APP (after any Code.gs change):
+ *   1. Keep WEBAPP_SECRET below in sync with TEMPLATE_WEBAPP_SECRET on Render.
+ *   2. Extensions → Apps Script → Deploy → Manage deployments →
+ *      Edit (pencil) → New version → Deploy.
+ *   3. If the /exec URL changes, update TEMPLATE_WEBAPP_URL on Render too.
+ *   4. Run Coach Tools → Run First-Time Setup once (sets master locale).
  ************************************************************************/
 
-// CHANGE THIS to a long random string, and set the SAME value as the
-// TEMPLATE_WEBAPP_SECRET environment variable on the dashboard host (Render).
+// Match TEMPLATE_WEBAPP_SECRET on Render (keep private).
 const WEBAPP_SECRET = '';
 
-// The dashboard's Google service-account email. Every generated client sheet is
-// auto-shared with it so the hosted dashboard can read the new sheet. Find it in
-// your service-account JSON as "client_email". Leave '' to share manually.
+// Dashboard's Google service-account email — every generated sheet is auto-
+// shared with it so the dashboard can read it. Find it as "client_email" in
+// the service-account JSON. Leave '' to share manually.
 const SERVICE_ACCOUNT_EMAIL = '';
 
-// Email the client a "your sheet is ready" message (with the link) when their
-// sheet is generated. Set to false to share silently. The email is sent from the
-// master-sheet owner's Google account.
+// Email the client a "your sheet is ready" message when generated.
 const NOTIFY_CLIENT = true;
-const COACH_NAME = 'Coach Abood';
+const COACH_NAME = 'Coach Khader';
 
 const T_INFO    = '⚙ Client Info';
 const T_PROGRAM = '⚙ Program Builder';
@@ -88,12 +88,14 @@ function firstTimeSetup() {
   const need    = [T_INFO, T_PROGRAM, T_WEEKRIR, T_TARGETS];
   const missing = need.filter(n => !ss.getSheetByName(n));
   const ui      = SpreadsheetApp.getUi();
+  try { ss.setSpreadsheetLocale('en_GB'); } catch (e) { /* non-fatal */ }
   if (missing.length) { ui.alert('Missing admin tabs: ' + missing.join(', ')); return; }
-  ui.alert('Setup OK. All admin tabs found. You can now use Generate Client Template.');
+  ui.alert('Setup OK. Master locale set to dd/MM/yyyy (UK). All admin tabs found — '
+           + 'you can now use Generate Client Template.');
 }
 
 // ====================================================================
-//  WEB APP ENTRY POINTS (called by the Flask dashboard)
+//  WEB APP ENTRY POINTS
 // ====================================================================
 function doPost(e) { return handleWebRequest_(e); }
 function doGet(e)  { return handleWebRequest_(e); }
@@ -104,14 +106,34 @@ function handleWebRequest_(e) {
     if (e && e.postData && e.postData.contents) {
       try { params = JSON.parse(e.postData.contents); } catch (err) { params = {}; }
     }
-    // Allow secret via JSON body or query string.
     var secret = params.secret || (e && e.parameter && e.parameter.secret) || '';
     if (secret !== WEBAPP_SECRET) {
       return jsonOut_({ ok: false, error: 'Unauthorized (bad or missing secret).' });
     }
 
-    var cfg = readConfig();              // reads the master ⚙ admin tabs
-    var res = generateFromConfig_(cfg);  // builds the new client file (headless)
+    // Idempotency: if this requestId was already processed, return the cached result.
+    if (params.requestId) {
+      var props = PropertiesService.getScriptProperties();
+      var cached = props.getProperty('rid:' + params.requestId);
+      if (cached) {
+        var cd = JSON.parse(cached);
+        return jsonOut_({ ok: true, url: cd.url, id: cd.id,
+                          fileName: cd.fileName, sharedWith: cd.sharedWith, cached: true });
+      }
+    }
+
+    // Config-in-POST path (Flask wizard) OR legacy read-from-sheets path (menu fallback).
+    var cfg = params.config ? normalizeConfig_(params.config) : readConfig();
+    var res = generateFromConfig_(cfg);
+
+    // Cache the result so a retry with the same requestId is instant.
+    if (params.requestId) {
+      var toCache = { url: res.dest.getUrl(), id: res.dest.getId(),
+                      fileName: res.fileName, sharedWith: res.sharedWith };
+      PropertiesService.getScriptProperties()
+        .setProperty('rid:' + params.requestId, JSON.stringify(toCache));
+    }
+
     return jsonOut_({
       ok: true,
       url: res.dest.getUrl(),
@@ -130,7 +152,83 @@ function jsonOut_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// ---- Read all config in one pass (one getValues() per sheet) ----
+// ====================================================================
+//  CONFIG — two sources: inline POST or master ⚙ tabs
+// ====================================================================
+
+/**
+ * normalizeConfig_: convert the Flask wizard's config-in-POST payload into
+ * the internal cfg shape that generateFromConfig_ expects.
+ *
+ * Input shape (matches _build_config_payload in app.py):
+ *   { info: {name,email,program,goal,start,unit,plan,billing},
+ *     sessions: [{label, exercises:[{ex,sets,reps,notes,link}]}],
+ *     weeks: [{week,rir}],
+ *     targets: [cal,protein,carbs,fat,fiber],
+ *     sleepTarget: '' }
+ */
+function normalizeConfig_(rawCfg) {
+  var info = rawCfg.info || {};
+  var cfg = {
+    name:    String(info.name    || '').trim(),
+    email:   String(info.email   || '').trim(),
+    program: String(info.program || '').trim(),
+    goal:    String(info.goal    || '').trim(),
+    unit:    String(info.unit    || 'kg').trim(),
+    plan:    info.plan,
+    billing: info.billing
+  };
+
+  if (!cfg.name) throw new Error('Client name is required.');
+
+  // Parse start date — Flask sends dd/mm/yyyy string.
+  var s = String(info.start || '').trim();
+  var dateObj;
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    var parts = s.split('/');
+    dateObj = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+  } else {
+    dateObj = new Date(s); // ISO fallback
+  }
+  if (isNaN(dateObj.getTime())) {
+    throw new Error('Invalid start date: "' + s + '" — expected dd/mm/yyyy.');
+  }
+  cfg.start = dateObj;
+
+  // Weeks
+  cfg.weeks = (rawCfg.weeks || []).filter(function(w) { return w.week; })
+    .map(function(w) { return { week: Number(w.week), rir: Number(w.rir) }; });
+  if (!cfg.weeks.length) throw new Error('No weeks defined.');
+
+  // Sessions → internal schedule + exByType (same shape buildWeekTab uses).
+  var sessions = (rawCfg.sessions || []).filter(function(s) {
+    return s.label && s.exercises && s.exercises.length > 0;
+  });
+  cfg.schedule = sessions.map(function(s) { return { day: s.label, type: s.label }; });
+  cfg.exByType = {};
+  sessions.forEach(function(s) {
+    cfg.exByType[s.label] = (s.exercises || []).map(function(e) {
+      return {
+        ex:    String(e.ex    || '').trim(),
+        sets:  String(e.sets  || '').trim(),
+        reps:  normalizeReps(e.reps || ''),
+        notes: String(e.notes || '').trim(),
+        link:  String(e.link  || '').trim()
+      };
+    }).filter(function(e) { return e.ex; });
+  });
+
+  // Targets: array [cal, protein, carbs, fat, fiber]
+  cfg.targets     = rawCfg.targets || ['', '', '', '', ''];
+  cfg.sleepTarget = String(rawCfg.sleepTarget || '').trim();
+
+  return cfg;
+}
+
+/**
+ * readConfig: reads the master ⚙ admin tabs (used by the menu path and as
+ * the fallback when no config is supplied in the POST).
+ */
 function readConfig() {
   const ss          = SpreadsheetApp.getActiveSpreadsheet();
   const infoVals    = ss.getSheetByName(T_INFO).getRange('B3:B10').getValues();
@@ -187,45 +285,58 @@ function readConfig() {
   return cfg;
 }
 
-// ---- Core generation (headless — no UI). Returns {dest, fileName, sharedWith} ----
+// ====================================================================
+//  CORE GENERATION — headless, returns {dest, fileName, sharedWith}
+// ====================================================================
 function generateFromConfig_(cfg) {
-  const fname = cfg.name + ' — Coach Abood LLC';
+  const fname = cfg.name + ' — Coach Khader';
   const dest  = SpreadsheetApp.create(fname);
 
-  // Day-first locale so dd/MM/yyyy is native everywhere — typed dates, DATEVALUE,
-  // and TEXT all read day-first, matching the dashboard's convention. Without
-  // this the sheet defaults to US (month-first) and date math goes wrong.
-  dest.setSpreadsheetLocale('en_GB');
+  try {
+    dest.setSpreadsheetLocale('en_GB');
 
-  buildWeightTab(dest, cfg);
-  cfg.weeks.forEach(w => buildWeekTab(dest, cfg, w.week, w.rir));
-  buildNutritionTab(dest, cfg);
+    buildWeightTab(dest, cfg);
+    cfg.weeks.forEach(w => buildWeekTab(dest, cfg, w.week, w.rir));
+    buildNutritionTab(dest, cfg);
 
-  const s1 = dest.getSheetByName('Sheet1');
-  if (s1) dest.deleteSheet(s1);
+    const s1 = dest.getSheetByName('Sheet1');
+    if (s1) dest.deleteSheet(s1);
 
-  createClientNamedRanges(dest);
-  SpreadsheetApp.flush();
+    createClientNamedRanges(dest);
+    SpreadsheetApp.flush();
 
-  // Share with the dashboard's service account so the hosted app can read it.
-  if (SERVICE_ACCOUNT_EMAIL) {
-    try { dest.addEditor(SERVICE_ACCOUNT_EMAIL); }
-    catch (e) { /* non-fatal: the coach can share manually if this fails */ }
-  }
-
-  let sharedWith = '';
-  if (cfg.email) {
+    // Share with anyone who has the link — works for non-Google clients
+    // (Hotmail, Outlook, etc.) without requiring a Google account or PIN.
     try {
-      dest.addEditor(cfg.email);
-      sharedWith = cfg.email;
-      if (NOTIFY_CLIENT) notifyClient_(cfg, dest);
+      DriveApp.getFileById(dest.getId())
+              .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    } catch (e) { /* non-fatal */ }
+
+    // Also share with the dashboard's service account (read path).
+    if (SERVICE_ACCOUNT_EMAIL) {
+      try { dest.addEditor(SERVICE_ACCOUNT_EMAIL); }
+      catch (e) { /* non-fatal */ }
     }
-    catch (e) { sharedWith = 'ERROR: ' + e.message; }
+
+    let sharedWith = '';
+    if (cfg.email) {
+      try {
+        dest.addEditor(cfg.email);
+        sharedWith = cfg.email;
+        if (NOTIFY_CLIENT) notifyClient_(cfg, dest);
+      }
+      catch (e) { sharedWith = 'ERROR: ' + e.message; }
+    }
+    return { dest: dest, fileName: fname, sharedWith: sharedWith };
+
+  } catch (err) {
+    // Trash the partial file so no orphan is left in Drive.
+    try { DriveApp.getFileById(dest.getId()).setTrashed(true); } catch (e2) {}
+    throw err;
   }
-  return { dest: dest, fileName: fname, sharedWith: sharedWith };
 }
 
-// ---- Notify the client their sheet is ready (email + link) ----
+// ---- Notify the client their sheet is ready ----
 function notifyClient_(cfg, dest) {
   try {
     MailApp.sendEmail({
@@ -240,8 +351,7 @@ function notifyClient_(cfg, dest) {
         '<p>— ' + COACH_NAME + '</p>'
     });
   } catch (e) {
-    // Non-fatal: the client still has access even if the email could not be sent
-    // (e.g. the daily mail quota was reached). Generation must not fail on this.
+    // Non-fatal: client has access even if the email quota is hit.
   }
 }
 
@@ -262,6 +372,10 @@ function generateClientTemplate() {
   ui.alert('Done!\n\n' + res.fileName + '\n\n' + shareMsg + '\n\n' + res.dest.getUrl());
 }
 
+// ====================================================================
+//  SHEET BUILDERS
+// ====================================================================
+
 // ---- Weight tab ----
 function buildWeightTab(dest, cfg) {
   const sh      = dest.insertSheet('Weight');
@@ -280,22 +394,17 @@ function buildWeightTab(dest, cfg) {
     .setFontWeight('bold').setFontColor(WHITE)
     .setBackground(NAVY).setHorizontalAlignment('center');
 
-  const last = n + 1;  // last data row (rows 2..141 for n=140)
+  const last = n + 1;
 
-  // Day Δ — today minus yesterday; blank on the first row or any gap.
   sh.getRange('C1').setFormula(
     '={"Day Δ"; ""; ARRAYFORMULA(IF((B3:B' + last + '="")+(B2:B' + (last-1) + '=""),"",B3:B' + last + '-B2:B' + (last-1) + '))}'
   );
-  // 7-Day Avg — trailing 7-day average of logged weights (named range WeightMA7).
-  // BYROW + AVERAGEIFS over the date window; robust and ignores blank days.
   sh.getRange('D1').setFormula(
     '={"7-Day Avg"; BYROW(SEQUENCE(' + n + ',1,2),LAMBDA(r,IF(INDEX(B:B,r)="","",IFERROR(AVERAGEIFS(B$2:B$' + last + ',A$2:A$' + last + ',">="&INDEX(A:A,r)-6,A$2:A$' + last + ',"<="&INDEX(A:A,r)),""))))}'
   );
   sh.getRange('E1').setFormula(
     '={"Weekly Avg"; BYROW(F2:F' + last + ',LAMBDA(f,IF(f="","",IFERROR(AVERAGEIF(F$2:F$' + last + ',f,B$2:B$' + last + '),""))))}'
   );
-  // Week # — column A holds real dates, so subtract directly. (DATEVALUE was the
-  // old bug: it re-parsed the dd/MM/yyyy text under a US locale -> wrong weeks.)
   sh.getRange('F1').setFormula(
     '={"Week #"; ARRAYFORMULA(IF(A2:A' + last + '="","",INT((A2:A' + last + '-A$2)/7)+1))}'
   );
@@ -313,13 +422,12 @@ function buildWeightTab(dest, cfg) {
   sh.getRange(2, 7, n, 1).setBackground(INPUT);
   sh.getRange(2, 8, n, 1).setBackground(INPUT);
   sh.getRange(2, 10, n, 1).setBackground(INPUT);
-  sh.getRange(2, 12, n, 1).setBackground(INPUT);   // Sleep (hrs) input column
+  sh.getRange(2, 12, n, 1).setBackground(INPUT);
 
   [110, 100, 80, 110, 110, 80, 200, 90, 110, 90, 120, 100]
     .forEach((w, i) => sh.setColumnWidth(i + 1, w));
 
   sh.setFrozenRows(1);
-
   sh.getRange(1, 1, lastRow, lastCol)
     .setBorder(true, true, true, true, true, true, BORDER_CLR, BS);
 
@@ -328,7 +436,6 @@ function buildWeightTab(dest, cfg) {
       .requireNumberBetween(20, 300).setAllowInvalid(false)
       .setHelpText('Enter weight in ' + cfg.unit + ' (20–300).').build()
   );
-
   sh.getRange(2, 12, n, 1).setDataValidation(
     SpreadsheetApp.newDataValidation()
       .requireNumberBetween(0, 24).setAllowInvalid(false)
@@ -371,8 +478,14 @@ function buildWeekTab(dest, cfg, week, rir) {
     const color      = DAY_COLORS[type] || NAVY;
     const blockStart = r;
 
+    // For dynamic sessions (day === type), show just the label; for weekday-
+    // based programs from the menu path, show "TYPE — Day" as before.
+    const headerText = (s.day && s.day !== s.type)
+      ? (s.type.toUpperCase() + '  —  ' + s.day)
+      : s.type.toUpperCase();
+
     sh.getRange(r, 1, 1, totalCols).merge()
-      .setValue(type.toUpperCase() + '  —  ' + s.day)
+      .setValue(headerText)
       .setFontWeight('bold').setFontSize(13)
       .setFontColor(WHITE).setBackground(color);
     r++;
@@ -409,7 +522,7 @@ function buildWeekTab(dest, cfg, week, rir) {
     sh.getRange(dataStart, 5, numEx, 1).setFontColor(MUTED).setWrap(true);
     sh.getRange(dataStart, 6, numEx, 1).setHorizontalAlignment('center');
     sh.getRange(dataStart, 7, numEx, 4).setBackground(INPUT).setHorizontalAlignment('center');
-    sh.getRange(dataStart, 7, numEx, 1).setNumberFormat('dd/MM/yyyy');  // Date col
+    sh.getRange(dataStart, 7, numEx, 1).setNumberFormat('dd/MM/yyyy');
     sh.getRange(dataStart, 11, numEx, 1).setWrap(true);
 
     exs.forEach((e, i) => {

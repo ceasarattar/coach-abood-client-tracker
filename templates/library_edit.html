@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from '_icons.html' import icon %}
-{% block title %}{{ 'New' if mode == 'new' else 'Edit' }} Program · Coach Abood{% endblock %}
+{% block title %}{{ 'New' if mode == 'new' else 'Edit' }} Program · Coach Khader{% endblock %}
 {% block crumbs %}
   <a href="{{ url_for('library') }}">Workout Library</a><span class="sep">/</span>
   <span class="here">{{ 'New program' if mode == 'new' else 'Edit program' }}</span>
@@ -10,6 +10,7 @@
 <span class="back-link" onclick="location.href='{{ url_for('library') }}'">{{ icon('arrowleft', 14) }} Library</span>
 
 <form method="post">
+{{ csrf_input() }}
 <div class="page-head">
   <div>
     <h1 class="page-title">{{ 'New program' if mode == 'new' else 'Edit program' }}</h1>
@@ -35,33 +36,46 @@
     </div>
   </div>
 
+  <!-- ── Training sessions (dynamic ordered list) ──────────────────────── -->
   <div class="panel">
-    <div class="panel-title">Weekly schedule</div>
-    <div class="sched-grid">
+    <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
+      <span>Training sessions</span>
+      <button type="button" class="btn btn-sm" onclick="addSession()">{{ icon('plus', 13) }} Add session</button>
+    </div>
+    <p class="field-hint" style="margin:0 0 0.8rem">One session per row — e.g. "Push", "Pull", "Full Body A". The exercise table below links to these labels.</p>
+    <div id="session-list">
       {% for s in program.schedule %}
-      <div>
-        <div class="cc-metric-label" style="margin-bottom:0.35rem">{{ s.day_name[:3] }}</div>
-        <input type="text" name="schedule_{{ s.day_name }}" list="wt-list" value="{{ s.workout_type or 'Rest' }}"
-               placeholder="Rest" style="text-align:center;font-weight:600">
+      <div class="session-row" style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <button type="button" class="btn btn-sm btn-ghost" style="padding:1px 6px;line-height:1" title="Move up" onclick="moveSession(this,-1)">▲</button>
+          <button type="button" class="btn btn-sm btn-ghost" style="padding:1px 6px;line-height:1" title="Move down" onclick="moveSession(this,1)">▼</button>
+        </div>
+        <input type="text" name="session_label" list="session-type-list" value="{{ s.workout_type }}"
+               placeholder="e.g. Push, Full Body A" style="flex:1" oninput="updateSessionDatalist()">
+        <button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeSession(this)">{{ icon('trash', 13) }}</button>
       </div>
       {% endfor %}
     </div>
+    <datalist id="session-type-list">
+      {% for wt in workout_types %}<option value="{{ wt }}"></option>{% endfor %}
+    </datalist>
   </div>
 
+  <!-- ── Exercises ──────────────────────────────────────────────────────── -->
   <div class="panel">
     <div class="panel-title">Exercises <span class="pill mono" id="ex-count">0</span></div>
     <div style="overflow-x:auto">
       <table class="table" id="ex-table" style="min-width:760px">
         <thead>
-          <tr><th style="width:110px">Day / type</th><th>Exercise</th><th style="width:60px">Sets</th><th style="width:80px">Reps</th><th>Coach notes</th><th style="width:130px">Tutorial</th><th style="width:50px"></th></tr>
+          <tr><th style="width:130px">Session</th><th>Exercise</th><th style="width:60px">Sets</th><th style="width:80px">Reps</th><th>Coach notes</th><th style="width:130px">Tutorial</th><th style="width:50px"></th></tr>
         </thead>
         <tbody id="ex-body">
           {% for e in program.exercises %}
           <tr>
-            <td><input type="text" name="ex_type" list="wt-list" value="{{ e.workout_type }}" placeholder="day"></td>
+            <td><input type="text" name="ex_type" list="session-labels" value="{{ e.workout_type }}" placeholder="session"></td>
             <td><input type="text" name="ex_name" value="{{ e.exercise }}" placeholder="Exercise name"></td>
-            <td><input type="text" name="ex_sets" class="num" value="{{ e.target_sets }}" placeholder="2" style="text-align:center"></td>
-            <td><input type="text" name="ex_reps" class="num" value="{{ e.target_reps }}" placeholder="8,6" style="text-align:center"></td>
+            <td><input type="text" name="ex_sets" class="num" value="{{ e.target_sets }}" placeholder="4" style="text-align:center"></td>
+            <td><input type="text" name="ex_reps" class="num" value="{{ e.target_reps }}" placeholder="8" style="text-align:center"></td>
             <td><input type="text" name="ex_notes" value="{{ e.coach_notes }}" placeholder="cue / setup"></td>
             <td><input type="text" name="ex_url" class="mono" value="{{ e.tutorial_url }}" placeholder="url"></td>
             <td><button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeRow(this)">{{ icon('trash', 13) }}</button></td>
@@ -71,6 +85,8 @@
       </table>
     </div>
     <button type="button" class="btn btn-sm" style="margin-top:0.9rem" onclick="addRow()">{{ icon('plus', 14) }} Add exercise</button>
+    <!-- Dynamic datalist populated from session label inputs -->
+    <datalist id="session-labels"></datalist>
   </div>
 </div>
 
@@ -80,16 +96,12 @@
 </div>
 </form>
 
-<datalist id="wt-list">
-  {% for wt in workout_types %}<option value="{{ wt }}"></option>{% endfor %}
-</datalist>
-
 <template id="ex-row-template">
   <tr>
-    <td><input type="text" name="ex_type" list="wt-list" placeholder="day"></td>
+    <td><input type="text" name="ex_type" list="session-labels" placeholder="session"></td>
     <td><input type="text" name="ex_name" placeholder="Exercise name"></td>
-    <td><input type="text" name="ex_sets" class="num" placeholder="2" style="text-align:center"></td>
-    <td><input type="text" name="ex_reps" class="num" placeholder="8,6" style="text-align:center"></td>
+    <td><input type="text" name="ex_sets" class="num" placeholder="4" style="text-align:center"></td>
+    <td><input type="text" name="ex_reps" class="num" placeholder="8" style="text-align:center"></td>
     <td><input type="text" name="ex_notes" placeholder="cue / setup"></td>
     <td><input type="text" name="ex_url" class="mono" placeholder="url"></td>
     <td><button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeRow(this)">{{ icon('trash', 13) }}</button></td>
@@ -99,6 +111,38 @@
 
 {% block scripts %}
 <script>
+/* ── Session list ───────────────────────────────────────────────────── */
+function addSession() {
+  var list = document.getElementById('session-list');
+  var row = document.createElement('div');
+  row.className = 'session-row';
+  row.style.cssText = 'display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem';
+  row.innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:2px">' +
+      '<button type="button" class="btn btn-sm btn-ghost" style="padding:1px 6px;line-height:1" title="Move up" onclick="moveSession(this,-1)">▲</button>' +
+      '<button type="button" class="btn btn-sm btn-ghost" style="padding:1px 6px;line-height:1" title="Move down" onclick="moveSession(this,1)">▼</button>' +
+    '</div>' +
+    '<input type="text" name="session_label" list="session-type-list" placeholder="e.g. Push, Full Body A" style="flex:1" oninput="updateSessionDatalist()">' +
+    '<button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeSession(this)">✕</button>';
+  list.appendChild(row);
+  row.querySelector('input').focus();
+  updateSessionDatalist();
+}
+function removeSession(btn) { btn.closest('.session-row').remove(); updateSessionDatalist(); }
+function moveSession(btn, dir) {
+  var row = btn.closest('.session-row');
+  var list = document.getElementById('session-list');
+  if (dir === -1 && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+  else if (dir === 1 && row.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+}
+function updateSessionDatalist() {
+  var labels = Array.from(document.querySelectorAll('[name="session_label"]'))
+    .map(function(el) { return el.value.trim(); }).filter(Boolean);
+  document.getElementById('session-labels').innerHTML =
+    labels.map(function(l) { return '<option value="' + l.replace(/"/g,'&quot;') + '">'; }).join('');
+}
+
+/* ── Exercise table ─────────────────────────────────────────────────── */
 function updateCount() {
   document.getElementById('ex-count').textContent = document.querySelectorAll('#ex-body tr').length;
 }
@@ -108,7 +152,9 @@ function addRow() {
   updateCount();
 }
 function removeRow(btn) { btn.closest('tr').remove(); updateCount(); }
+
 if (!document.querySelector('#ex-body tr')) { addRow(); }
 updateCount();
+updateSessionDatalist();
 </script>
 {% endblock %}

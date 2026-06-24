@@ -52,7 +52,7 @@
 .macro-fill { height:100%; border-radius:4px; transition:width 0.4s; }
 .macro-fill.kcal { background:var(--accent); }
 .macro-fill.prot { background:var(--green); }
-.macro-fill.carb { background:oklch(0.780 0.100 200); }
+.macro-fill.carb { background:var(--carb); }
 .macro-fill.fat  { background:var(--amber); }
 .macro-fill.over { background:var(--red); }
 .macro-nums { text-align:right; font-family:var(--mono); font-size:0.76rem; color:var(--text-2); }
@@ -65,7 +65,7 @@
 .macro-card-val { font-family:var(--mono); font-size:1.1rem; font-weight:700; }
 .macro-card-val.kcal { color:var(--accent-bright); }
 .macro-card-val.prot { color:var(--green); }
-.macro-card-val.carb { color:oklch(0.780 0.100 200); }
+.macro-card-val.carb { color:var(--carb); }
 .macro-card-val.fat  { color:var(--amber); }
 
 /* Foods */
@@ -82,10 +82,10 @@ details.food-item[open] > summary > .food-row::before { transform:rotate(90deg);
 .food-famt  { font-size:0.75rem; color:var(--muted); margin-left:0.3rem; }
 .food-chips { display:flex; gap:0.25rem; flex-shrink:0; }
 .fchip { font-family:var(--mono); font-size:0.68rem; font-weight:600; padding:0.1rem 0.38rem; border-radius:5px; border:1px solid transparent; white-space:nowrap; }
-.fchip-k { background:oklch(0.685 0.118 245/0.18); color:var(--accent-bright); border-color:oklch(0.685 0.118 245/0.28); }
-.fchip-p { background:oklch(0.745 0.140 150/0.14); color:var(--green); border-color:oklch(0.745 0.140 150/0.26); }
-.fchip-c { background:oklch(0.780 0.100 200/0.14); color:oklch(0.780 0.100 200); border-color:oklch(0.780 0.100 200/0.26); }
-.fchip-f { background:oklch(0.808 0.125 82/0.14); color:var(--amber); border-color:oklch(0.808 0.125 82/0.26); }
+.fchip-k { background:color-mix(in oklab,var(--accent) 14%,transparent); color:var(--accent-bright); border-color:color-mix(in oklab,var(--accent) 30%,transparent); }
+.fchip-p { background:var(--green-dim); color:var(--green); border-color:color-mix(in oklab,var(--green) 30%,transparent); }
+.fchip-c { background:color-mix(in oklab,var(--carb) 14%,transparent); color:var(--carb); border-color:color-mix(in oklab,var(--carb) 30%,transparent); }
+.fchip-f { background:var(--amber-dim); color:var(--amber); border-color:color-mix(in oklab,var(--amber) 30%,transparent); }
 
 .food-nutr { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:0 1.2rem; padding:0.3rem 0 0.7rem 1rem; background:var(--bg); border-radius:0 0 8px 8px; margin-top:2px; }
 .fn-row { display:flex; justify-content:space-between; padding:0.18rem 0; border-bottom:1px dashed var(--border-soft); font-size:0.76rem; }
@@ -427,8 +427,8 @@ details.food-item[open] > summary > .food-row::before { transform:rotate(90deg);
   chartDates.sort();
   var chartVals = chartDates.map(function(d){ return CAL_DATA[d]; });
 
-  var PAL = { accent:'#4f9be8', amber:'#d79a52', green:'#3fb583',
-              text:'#9aa7b8', grid:'#2c313c', axis:'#3a4150', faint:'#6b7585', red:'#d95f5f' };
+  var PAL = { accent:'#5b40c9', amber:'#9c6b1e', green:'#2f9162',
+              text:'#5b5667', grid:'#e7e3de', axis:'#cdc7bf', faint:'#8b8693', red:'#b23a2e' };
 
   function buildChart(highlightIso) {
     if (!chartDates.length) {
@@ -441,7 +441,7 @@ details.food-item[open] > summary > .food-row::before { transform:rotate(90deg);
       x: chartDates, y: chartVals, type: 'scatter', mode: 'lines+markers', name: 'kcal',
       line: { color: PAL.accent, width: 2.4, shape: 'spline', smoothing: 0.6 },
       marker: { color: PAL.accent, size: 5 },
-      fill: 'tozeroy', fillcolor: 'rgba(79,155,232,0.08)',
+      fill: 'tozeroy', fillcolor: 'rgba(91,64,201,0.07)',
       hovertemplate: '%{x|%b %d}<br><b>%{y:,.0f} kcal</b><extra></extra>',
     }];
     if (hiIdx >= 0) {

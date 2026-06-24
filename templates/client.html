@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from '_icons.html' import icon %}
-{% block title %}{{ d.name }} · Coach Abood{% endblock %}
+{% block title %}{{ d.name }} · Coach Khader{% endblock %}
 {% block crumbs %}
   <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span><span class="here">{{ d.name }}</span>
 {% endblock %}
@@ -16,6 +16,7 @@
   <div class="header-actions">
     <a href="{{ url_for('client_log', name=d.name) }}" class="btn">{{ icon('scale', 16) }} Log entry</a>
     <a href="{{ url_for('client_cronometer', name=d.name) }}" class="btn">{{ icon('flame', 16) }} Cronometer</a>
+    <a href="{{ url_for('client_edit', name=d.name) }}" class="btn">{{ icon('edit', 16) }} Edit</a>
   </div>
 </div>
 
@@ -156,14 +157,36 @@
   </div>
 </div>
 {% endif %}
+
+<!-- ── Manage client (always available, even if the sheet errored) ──────── -->
+<div class="panel" style="margin-top:var(--gap)">
+  <div class="panel-title">Manage client</div>
+  <p class="page-sub" style="margin:0 0 0.9rem">
+    {% if d.active %}Active — shows on the main dashboard.{% else %}Deactivated — hidden from the main list.{% endif %}
+  </p>
+  <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center">
+    <a href="{{ url_for('client_edit', name=d.name) }}" class="btn btn-sm">{{ icon('edit', 14) }} Edit details</a>
+    <form method="post" action="{{ url_for('client_toggle_active', name=d.name) }}" style="display:inline">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-sm btn-ghost">
+        {% if d.active %}{{ icon('warn', 14) }} Deactivate{% else %}{{ icon('check', 14) }} Reactivate{% endif %}
+      </button>
+    </form>
+    <form method="post" action="{{ url_for('client_delete', name=d.name) }}" style="display:inline;margin-left:auto"
+          onsubmit="return confirm('Remove this client from the dashboard? This deletes their dashboard record, Cronometer login, and nutrition cache. Their Google Sheet in Drive is NOT touched.');">
+      {{ csrf_input() }}
+      <button type="submit" class="btn btn-sm btn-danger">{{ icon('trash', 14) }} Remove from dashboard</button>
+    </form>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 {% if not d.error %}
 <script>
 (function () {
-  var PAL = { accent: '#4f9be8', amber: '#d79a52', green: '#3fb583',
-              text: '#9aa7b8', grid: '#2c313c', axis: '#3a4150', faint: '#6b7585' };
+  var PAL = { accent: '#5b40c9', amber: '#9c6b1e', green: '#2f9162',
+              text: '#5b5667', grid: '#e7e3de', axis: '#cdc7bf', faint: '#8b8693' };
   var base = {
     paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
     font: { color: PAL.text, family: 'Hanken Grotesk, system-ui, sans-serif', size: 11.5 },
@@ -206,7 +229,7 @@
       line: { color: PAL.accent, width: 2.4, shape: 'spline', smoothing: 0.6 },
       marker: { color: PAL.accent, size: 5 },
       hovertemplate: '%{x|%b %d}<br><b>%{y:,.0f} kcal</b><extra></extra>',
-      fill: 'tozeroy', fillcolor: 'rgba(79,155,232,0.08)',
+      fill: 'tozeroy', fillcolor: 'rgba(91,64,201,0.07)',
     }], Object.assign({}, base, {
       height: 190,
       xaxis: { type: 'date', tickformat: '%b %d', dtick: 86400000 * 3,

@@ -140,6 +140,28 @@ def authenticate(force: bool = False):
     return _service_cache
 
 
+def new_service():
+    """
+    Build a FRESH, independent Sheets service for use on a worker thread.
+
+    googleapiclient wraps httplib2.Http, which is NOT thread-safe — concurrent
+    requests must never share one service object. The dashboard fetches clients
+    in parallel (ThreadPoolExecutor), so each pool thread gets its own service
+    via this helper (built once per thread and reused). Discovery is static
+    (bundled), so construction does not hit the network.
+
+    Raises SheetsNotConfigured when no key is available, like authenticate().
+    """
+    info = _service_account_info()
+    if info is None:
+        raise SheetsNotConfigured(
+            'No Google service-account key found. Set the '
+            f'{SERVICE_ACCOUNT_ENV} env var or add service_account.json '
+            '(see DEPLOY.md).')
+    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+    return build('sheets', 'v4', credentials=creds, cache_discovery=False)
+
+
 def _batch_get(service, spreadsheet_id: str, ranges: list) -> dict:
     """Single batchGet with 429 exponential backoff. Returns the raw response."""
     max_retries = 3

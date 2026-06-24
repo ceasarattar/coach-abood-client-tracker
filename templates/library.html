@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from '_icons.html' import icon %}
-{% block title %}Workout Library · Coach Abood{% endblock %}
+{% block title %}Workout Library · Coach Khader{% endblock %}
 {% block crumbs %}<span class="here">Workout Library</span>{% endblock %}
 
 {% block content %}
@@ -31,7 +31,8 @@
     <div style="display:flex;gap:0.4rem;flex-shrink:0">
       <a href="{{ url_for('library_edit', program_id=p.id) }}" class="btn btn-sm">{{ icon('edit', 14) }} Edit</a>
       <form method="post" action="{{ url_for('library_delete', program_id=p.id) }}" style="display:inline"
-            onsubmit="return confirm('Delete program “{{ p.name }}”? This cannot be undone.');">
+            onsubmit="return confirm('Delete program &quot;{{ p.name }}&quot;? This cannot be undone.');">
+        {{ csrf_input() }}
         <button type="submit" class="btn btn-sm btn-danger" title="Delete">{{ icon('trash', 14) }}</button>
       </form>
     </div>

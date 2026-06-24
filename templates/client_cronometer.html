@@ -21,8 +21,9 @@
     <div class="panel-title">Credentials
       {% if has_creds %}<span class="badge green">saved</span>{% else %}<span class="badge gray">not set</span>{% endif %}
     </div>
-    <p class="field-hint" style="margin-bottom:1rem">Coach Abood enters the client's Cronometer email + password here; it is stored <strong>encrypted in the shared database</strong> — never in plain text in the sheet or GitHub.</p>
+    <p class="field-hint" style="margin-bottom:1rem">Enter the client's Cronometer email + password here; it is stored <strong>encrypted in the shared database</strong> — never in plain text in the sheet or GitHub.</p>
     <form method="post">
+      {{ csrf_input() }}
       <input type="hidden" name="action" value="save">
       <label class="field"><span class="field-label">Cronometer email</span>
         <input type="email" name="cron_email" class="mono" placeholder="client@example.com" required></label>
@@ -45,6 +46,7 @@
     <div class="panel-title">Sync calories to sheet</div>
     <p class="field-hint" style="margin-bottom:1rem">Logs into Cronometer in the background, exports the recent daily nutrition, and writes calories into the Weight tab by date.</p>
     <form method="post">
+      {{ csrf_input() }}
       <input type="hidden" name="action" value="sync">
       <label class="field" style="max-width:160px"><span class="field-label">Days to pull</span>
         <input type="number" name="days" class="num" value="14" min="1" max="90"></label>
@@ -55,6 +57,7 @@
   </div>
 
   <form method="post" onsubmit="return confirm('Remove stored Cronometer login for {{ client.name }}?');">
+    {{ csrf_input() }}
     <input type="hidden" name="action" value="delete">
     <button type="submit" class="btn btn-danger btn-sm">{{ icon('trash', 14) }} Remove stored credentials</button>
   </form>

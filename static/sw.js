@@ -1,7 +1,7 @@
-/* Coach Abood — minimal service worker.
+/* Coach Khader — minimal service worker.
    Network-first so you always get the latest live data; falls back to the
    last-seen copy of a page when offline. Enables PWA "Install". */
-const CACHE = 'coach-abood-v1';
+const CACHE = 'coach-khader-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 

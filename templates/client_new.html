@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from '_icons.html' import icon %}
-{% block title %}New client setup · Coach Abood{% endblock %}
+{% block title %}New client setup · Coach Khader{% endblock %}
 {% block crumbs %}
   <a href="{{ url_for('index') }}">Clients</a><span class="sep">/</span>
   <a href="{{ url_for('clients_add') }}">Add client</a><span class="sep">/</span>
@@ -12,7 +12,7 @@
 <div class="page-head">
   <div>
     <h1 class="page-title">New client setup</h1>
-    <p class="page-sub">Define everything, write to the master sheet, generate, then register.</p>
+    <p class="page-sub">Define everything, generate the sheet, and add to the dashboard — all in one step.</p>
   </div>
 </div>
 
@@ -26,7 +26,8 @@
   <span class="wstep" data-step="6"><span class="wstep-num">6</span> Generate</span>
 </div>
 
-<form method="post" id="wizard-form">
+<form method="post" id="wizard-form" onsubmit="lockSubmit(this)">
+  {{ csrf_input() }}
   <input type="hidden" name="action" value="write_master">
 
   <div class="panel" style="margin-bottom:1.2rem">
@@ -42,7 +43,7 @@
         <label class="field"><span class="field-label">Goal</span><input type="text" name="goal" placeholder="e.g. Build muscle"></label>
       </div>
       <div class="field-row">
-        <label class="field"><span class="field-label">Start date</span><input type="date" name="start_date" class="mono"></label>
+        <label class="field"><span class="field-label">Start date (dd/mm/yyyy)</span><input type="text" name="start_date" class="mono js-date" placeholder="dd/mm/yyyy" autocomplete="off"></label>
         <label class="field"><span class="field-label">Weight unit</span>
           <select name="weight_unit"><option value="kg">kg</option><option value="lbs">lbs</option></select></label>
         <label class="field"><span class="field-label">Monthly plan ($)</span><input type="number" name="plan_usd" class="num" step="1" min="0" placeholder="150"></label>
@@ -60,20 +61,20 @@
         </select>
       </label>
 
-      <div class="cc-metric-label" style="margin:1rem 0 0.5rem">Weekly schedule</div>
-      <div class="sched-grid">
-        {% for day in days %}
-        <div>
-          <div class="cc-metric-label" style="margin-bottom:0.3rem">{{ day[:3] }}</div>
-          <input type="text" name="schedule_{{ day }}" list="wt-list" value="Rest" placeholder="Rest" style="text-align:center;font-weight:600">
-        </div>
-        {% endfor %}
-      </div>
+      <!-- Dynamic session list -->
+      <div class="cc-metric-label" style="margin:1rem 0 0.3rem">Training sessions</div>
+      <p class="field-hint" style="margin:0 0 0.7rem">Add sessions in order — e.g. "Push", "Pull", "Full Body A". The exercise table links to these labels.</p>
+      <div id="session-list"></div>
+      <button type="button" class="btn btn-sm" style="margin-bottom:1.2rem" onclick="addSession()">{{ icon('plus', 13) }} Add session</button>
+      <datalist id="session-type-list">
+        {% for wt in workout_types %}<option value="{{ wt }}"></option>{% endfor %}
+      </datalist>
+      <datalist id="session-labels"></datalist>
 
-      <div class="cc-metric-label" style="margin:1.2rem 0 0.5rem">Exercises</div>
+      <div class="cc-metric-label" style="margin:0 0 0.5rem">Exercises</div>
       <div style="overflow-x:auto">
         <table class="table" id="ex-table" style="min-width:680px">
-          <thead><tr><th style="width:110px">Day / type</th><th>Exercise</th><th style="width:60px">Sets</th><th style="width:80px">Reps</th><th>Coach notes</th><th style="width:130px">Tutorial</th><th style="width:50px"></th></tr></thead>
+          <thead><tr><th style="width:130px">Session</th><th>Exercise</th><th style="width:60px">Sets</th><th style="width:80px">Reps</th><th>Coach notes</th><th style="width:130px">Tutorial</th><th style="width:50px"></th></tr></thead>
           <tbody id="ex-body"></tbody>
         </table>
       </div>
@@ -111,13 +112,13 @@
     <!-- STEP 6 — Generate -->
     <section class="wpanel" data-panel="6" hidden>
       <div class="panel-title">Step 6 · Generate</div>
-      <p style="font-size:0.9rem;color:var(--text-2);line-height:1.6;max-width:560px">Click below to create the client. The app writes your entries into the
-        master sheet, runs the generator, creates the client's Google Sheet
-        (shared with their email automatically), and adds them to the dashboard — all in one step.</p>
+      <p style="font-size:0.9rem;color:var(--text-2);line-height:1.6;max-width:560px">Click below to create the client. The app sends your entries to the generator,
+        creates the client's Google Sheet (shared with their email automatically),
+        and adds them to the dashboard — all in one step.</p>
       <p class="field-hint" style="max-width:560px">If one-click generation isn't set up yet, the app falls back to letting you run
         <strong>Coach Tools → Generate Client Template</strong> manually and paste the sheet URL.</p>
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">{{ icon('sheet', 16) }} Generate client &amp; add to dashboard</button>
+        <button type="submit" id="generate-btn" class="btn btn-primary">{{ icon('sheet', 16) }} Generate client &amp; add to dashboard</button>
       </div>
     </section>
   </div>
@@ -134,6 +135,7 @@
   <div class="panel-title">Register the generated client</div>
   <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">After generating the client sheet, paste its URL or ID below to add it to the dashboard.</p>
   <form method="post">
+    {{ csrf_input() }}
     <input type="hidden" name="action" value="register">
     <div class="field-row">
       <label class="field"><span class="field-label">Client name</span><input type="text" name="reg_name" value="{{ form.get('name','') }}" required></label>
@@ -150,16 +152,12 @@
 </div>
 {% endif %}
 
-<datalist id="wt-list">
-  {% for wt in workout_types %}<option value="{{ wt }}"></option>{% endfor %}
-</datalist>
-
 <template id="ex-row-template">
   <tr>
-    <td><input type="text" name="ex_type" list="wt-list" placeholder="day"></td>
+    <td><input type="text" name="ex_type" list="session-labels" placeholder="session"></td>
     <td><input type="text" name="ex_name" placeholder="Exercise name"></td>
-    <td><input type="text" name="ex_sets" class="num" placeholder="2" style="text-align:center"></td>
-    <td><input type="text" name="ex_reps" class="num" placeholder="8,6" style="text-align:center"></td>
+    <td><input type="text" name="ex_sets" class="num" placeholder="4" style="text-align:center"></td>
+    <td><input type="text" name="ex_reps" class="num" placeholder="8" style="text-align:center"></td>
     <td><input type="text" name="ex_notes" placeholder="cue / setup"></td>
     <td><input type="text" name="ex_url" class="mono" placeholder="url"></td>
     <td><button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeRow(this)">{{ icon('trash', 13) }}</button></td>
@@ -182,12 +180,53 @@ function goStep(delta) {
   if (next < 1 || next > maxStep) return;
   step = next; showStep(step);
 }
+
+/* Disable submit button on submit to prevent double-click / double-POST */
+function lockSubmit(form) {
+  var btn = document.getElementById('generate-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+}
+
+/* ── Session list ──────────────────────────────────────────────────────── */
+function addSession(label) {
+  var list = document.getElementById('session-list');
+  var row = document.createElement('div');
+  row.className = 'session-row';
+  row.style.cssText = 'display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem';
+  row.innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:2px">' +
+      '<button type="button" class="btn btn-sm btn-ghost" style="padding:1px 6px;line-height:1" title="Move up" onclick="moveSession(this,-1)">▲</button>' +
+      '<button type="button" class="btn btn-sm btn-ghost" style="padding:1px 6px;line-height:1" title="Move down" onclick="moveSession(this,1)">▼</button>' +
+    '</div>' +
+    '<input type="text" name="session_label" list="session-type-list" placeholder="e.g. Push, Full Body A" style="flex:1" oninput="updateSessionDatalist()">' +
+    '<button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="removeSession(this)">✕</button>';
+  list.appendChild(row);
+  if (label) row.querySelector('input').value = label;
+  updateSessionDatalist();
+  return row;
+}
+function removeSession(btn) { btn.closest('.session-row').remove(); updateSessionDatalist(); }
+function moveSession(btn, dir) {
+  var row = btn.closest('.session-row');
+  var list = document.getElementById('session-list');
+  if (dir === -1 && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+  else if (dir === 1 && row.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+}
+function updateSessionDatalist() {
+  var labels = Array.from(document.querySelectorAll('[name="session_label"]'))
+    .map(function(el) { return el.value.trim(); }).filter(Boolean);
+  document.getElementById('session-labels').innerHTML =
+    labels.map(function(l) { return '<option value="' + l.replace(/"/g,'&quot;') + '">'; }).join('');
+}
+
+/* ── Exercise table ────────────────────────────────────────────────────── */
 function addRow() {
   var tpl = document.getElementById('ex-row-template');
   document.getElementById('ex-body').appendChild(tpl.content.cloneNode(true));
 }
 function removeRow(btn) { btn.closest('tr').remove(); }
 
+/* ── RIR builder ───────────────────────────────────────────────────────── */
 function buildRir() {
   var n = parseInt(document.getElementById('num-weeks').value) || 0;
   var body = document.getElementById('rir-body');
@@ -200,9 +239,12 @@ function buildRir() {
   }
 }
 
+/* ── Review ────────────────────────────────────────────────────────────── */
 function renderReview() {
   var f = document.getElementById('wizard-form');
   function v(name) { var el = f.elements[name]; return el ? el.value : ''; }
+  var sessionLabels = Array.from(document.querySelectorAll('[name="session_label"]'))
+    .map(function(el) { return el.value.trim(); }).filter(Boolean);
   var html = '<h3>Client</h3><ul>' +
     '<li>Name: ' + (v('name') || '—') + '</li>' +
     '<li>Email: ' + (v('email') || '—') + '</li>' +
@@ -211,8 +253,10 @@ function renderReview() {
     '<li>Start: ' + (v('start_date') || '—') + '</li>' +
     '<li>Unit: ' + v('weight_unit') + '</li>' +
     '<li>Plan: $' + v('plan_usd') + ' / billing day ' + v('billing_day') + '</li></ul>';
+  html += '<h3>Sessions (' + sessionLabels.length + ')</h3>' +
+    (sessionLabels.length ? '<ol>' + sessionLabels.map(function(l){return '<li>'+l+'</li>';}).join('') + '</ol>' : '<p>None</p>');
   var ex = f.querySelectorAll('#ex-body tr').length;
-  html += '<h3>Program</h3><p>' + ex + ' exercise(s)</p>';
+  html += '<p>' + ex + ' exercise(s)</p>';
   html += '<h3>Weeks</h3><p>' + v('num_weeks') + ' weeks</p>';
   html += '<h3>Targets</h3><ul><li>' + v('calories') + ' kcal</li><li>P ' +
     v('protein') + ' / C ' + v('carbs') + ' / F ' + v('fat') + ' / Fiber ' + v('fiber') + '</li>' +
@@ -220,15 +264,24 @@ function renderReview() {
   document.getElementById('review-out').innerHTML = html;
 }
 
+/* ── Preset loader ─────────────────────────────────────────────────────── */
 document.getElementById('preset-select').addEventListener('change', function () {
   var id = this.value;
   if (!id) return;
   fetch('/library/' + id + '/json').then(function (r) { return r.json(); })
     .then(function (p) {
+      // Clear and repopulate session list from schedule (use workout_type as label)
+      document.getElementById('session-list').innerHTML = '';
+      var seen = [];
       (p.schedule || []).forEach(function (s) {
-        var sel = document.querySelector('[name="schedule_' + s.day_name + '"]');
-        if (sel) sel.value = s.workout_type;
+        var label = s.workout_type || s.day_name;
+        if (label && label !== 'Rest' && seen.indexOf(label) === -1) {
+          seen.push(label);
+          addSession(label);
+        }
       });
+      updateSessionDatalist();
+      // Repopulate exercises
       var body = document.getElementById('ex-body');
       body.innerHTML = '';
       (p.exercises || []).forEach(function (e) {

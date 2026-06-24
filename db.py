@@ -319,6 +319,62 @@ def add_client(client: dict[str, Any]) -> None:
             active=bool(client.get("active", True)), position=maxpos + 1))
 
 
+def update_client(old_name: str, fields: dict[str, Any]) -> bool:
+    """
+    Update a client row, located by its current name. Returns False if not found.
+
+    Only the keys present in `fields` are changed. The caller is responsible for
+    re-keying name-scoped external data (Cronometer creds, nutrition cache) when
+    the name changes — see app._rename_client_artifacts. This separation is
+    deliberate: db.py never reaches into secrets_store/cache.
+    """
+    with engine.begin() as conn:
+        row = conn.execute(select(clients.c.id).where(
+            func.lower(clients.c.name) == old_name.strip().lower())).first()
+        if not row:
+            return False
+        values: dict[str, Any] = {}
+        if "name" in fields:
+            values["name"] = str(fields["name"]).strip()
+        if "spreadsheet_id" in fields:
+            values["spreadsheet_id"] = str(fields["spreadsheet_id"]).strip()
+        if "master_spreadsheet_id" in fields:
+            values["master_spreadsheet_id"] = str(fields.get("master_spreadsheet_id") or "").strip()
+        if "plan_usd" in fields:
+            values["plan_usd"] = _as_float(fields["plan_usd"], 0)
+        if "weight_unit" in fields:
+            values["weight_unit"] = (fields.get("weight_unit") or "kg")
+        if "active" in fields:
+            values["active"] = bool(fields["active"])
+        if values:
+            conn.execute(update(clients).where(clients.c.id == row.id).values(**values))
+        return True
+
+
+def delete_client(name: str) -> bool:
+    """
+    Hard-delete a client row by name. Returns True if a row was removed.
+
+    Unregister-only: this removes the dashboard's record. Name-scoped external
+    data (creds, caches) is purged by the caller; the client's Google Sheet in
+    Drive is intentionally left untouched.
+    """
+    with engine.begin() as conn:
+        result = conn.execute(sa_delete(clients).where(
+            func.lower(clients.c.name) == name.strip().lower()))
+        return result.rowcount > 0
+
+
+def set_client_active(name: str, active: bool) -> bool:
+    """Toggle a client's active flag (deactivated clients hide from the main
+    list but keep their row so they can be restored). Returns True if updated."""
+    with engine.begin() as conn:
+        result = conn.execute(update(clients).where(
+            func.lower(clients.c.name) == name.strip().lower()
+        ).values(active=bool(active)))
+        return result.rowcount > 0
+
+
 def _as_float(value, default=0.0) -> float:
     try:
         return float(str(value).replace(",", "").strip())
@@ -343,6 +399,12 @@ def kv_set(key: str, value: str) -> None:
             conn.execute(update(app_kv).where(app_kv.c.key == key).values(value=value))
         else:
             conn.execute(insert(app_kv).values(key=key, value=value))
+
+
+def kv_delete(key: str) -> None:
+    """Remove a key/value entry (used to purge a deleted client's caches)."""
+    with engine.begin() as conn:
+        conn.execute(sa_delete(app_kv).where(app_kv.c.key == key))
 
 
 # ---------------------------------------------------------------------------

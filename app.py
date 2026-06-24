@@ -1,19 +1,24 @@
 import os
 import re
 import json
+import secrets
 import logging
 import logging.handlers
+import threading
 import urllib.request
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import unquote, urlparse
 
 from flask import (Flask, render_template, redirect, url_for, jsonify, abort,
                    request, flash, session)
+from markupsafe import Markup
 from googleapiclient.errors import HttpError
 
 import sheets_client as sc
 import db
+import cache
 import secrets_store
 import cronometer_api
 import cronometer_client
@@ -47,7 +52,7 @@ _load_dotenv_into_environ()
 app = Flask(__name__)
 app.secret_key = (os.environ.get('SECRET_KEY')
                   or os.environ.get('FLASK_SECRET')
-                  or 'coach-abood-local-dev-secret')
+                  or 'coach-khader-local-dev-secret')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # Shared passcode that gates the whole app once it is hosted publicly.
@@ -75,7 +80,25 @@ logger = logging.getLogger(__name__)
 # Disabled automatically when APP_PASSCODE is unset (local development).
 # ---------------------------------------------------------------------------
 
-_PUBLIC_ENDPOINTS = {'login', 'logout', 'health', 'static', 'service_worker'}
+_PUBLIC_ENDPOINTS = {'login', 'logout', 'health', 'static', 'service_worker', 'reauth'}
+
+
+def _csrf_token() -> str:
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
+
+
+def _csrf_input() -> Markup:
+    return Markup(f'<input type="hidden" name="csrf_token" value="{_csrf_token()}">')
+
+
+@app.context_processor
+def _inject_globals():
+    """Expose whether the passcode gate is active (controls Sign-out link) + CSRF helper."""
+    return {'app_gated': bool(APP_PASSCODE),
+            'csrf_input': _csrf_input,
+            'csrf_token': _csrf_token}
 
 
 @app.before_request
@@ -85,6 +108,20 @@ def _require_login():
     if request.endpoint in _PUBLIC_ENDPOINTS or session.get('authed'):
         return
     return redirect(url_for('login', next=request.path))
+
+
+@app.before_request
+def _check_csrf():
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return
+    if request.endpoint in _PUBLIC_ENDPOINTS:
+        return
+    # Allow requests from the service worker / health endpoint
+    if request.endpoint in ('health',):
+        return
+    token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token', '')
+    if not token or token != session.get('csrf_token'):
+        abort(403)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -106,10 +143,30 @@ def logout():
     return redirect(url_for('login'))
 
 
-@app.context_processor
-def _inject_globals():
-    """Expose whether the passcode gate is active (controls the Sign-out link)."""
-    return {'app_gated': bool(APP_PASSCODE)}
+
+
+# ---------------------------------------------------------------------------
+# Global error handlers — never leak a traceback to the user; always render a
+# branded page. 500s are logged with full context for the dashboard.log.
+# ---------------------------------------------------------------------------
+
+@app.errorhandler(404)
+def _not_found(err):
+    return render_template('404.html'), 404
+
+
+@app.errorhandler(500)
+@app.errorhandler(Exception)
+def _server_error(err):
+    # HTTP errors (abort(4xx)) keep their own status; everything else is a 500.
+    from werkzeug.exceptions import HTTPException
+    if isinstance(err, HTTPException):
+        if err.code == 404:
+            return render_template('404.html'), 404
+        return render_template('500.html', code=err.code,
+                               message=err.description), err.code
+    logger.error('Unhandled exception on %s', request.path, exc_info=True)
+    return render_template('500.html', code=500, message=None), 500
 
 
 @app.route('/sw.js')
@@ -167,19 +224,28 @@ def _webapp_config() -> tuple:
     return url, secret
 
 
-def trigger_template_generation(timeout: int = 120) -> dict:
+def trigger_template_generation(config=None, request_id=None,
+                                timeout: int = 120) -> dict:
     """
-    POST to the Apps Script web app to generate a client file from the master
-    admin tabs. Returns the parsed JSON {ok, url, id, fileName, sharedWith}.
+    POST to the Apps Script web app to generate a client file.
 
-    Raises RuntimeError on transport/auth failure or if the script reports an
-    error, so the caller can surface a clean message.
+    When ``config`` is supplied it is sent inline (config-in-POST), bypassing
+    the master ⚙ tab round-trip and fixing the orphan-sheet race (#5).
+    ``request_id`` enables idempotency on the Apps Script side — a repeated
+    POST with the same id returns the cached result immediately.
+
+    Raises RuntimeError on transport/auth failure or a script-side error.
     """
     url, secret = _webapp_config()
     if not url:
         raise RuntimeError('TEMPLATE_WEBAPP_URL is not set in .env — cannot '
                            'auto-generate. See docs/CLIENT_GENERATION.md.')
-    body = json.dumps({'secret': secret}).encode('utf-8')
+    payload: dict = {'secret': secret}
+    if config is not None:
+        payload['config'] = config
+    if request_id is not None:
+        payload['requestId'] = request_id
+    body = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(url, data=body,
                                  headers={'Content-Type': 'application/json'})
     try:
@@ -200,9 +266,9 @@ def trigger_template_generation(timeout: int = 120) -> dict:
     return data
 
 
-def _load_clients() -> list:
+def _load_clients(active_only: bool = False) -> list:
     """The client registry now lives in the shared database (was clients.yaml)."""
-    return db.list_clients()
+    return db.list_clients(active_only=active_only)
 
 
 def extract_sheet_id(value: str) -> str:
@@ -272,6 +338,69 @@ def _days_since_last(date_list: list):
     if not valid:
         return None
     return (date.today() - max(valid)).days
+
+
+# ---------------------------------------------------------------------------
+# Concurrency + caching
+#
+# The dashboard reads several client sheets per page. A process-local TTL cache
+# (cache.store) plus a bounded thread pool turn the old "~3 sequential Sheets
+# calls per client on every navigation" into "fetch once per TTL window, in
+# parallel" — the fix for the sluggish, inconsistent navigation (issue #7).
+# Render runs a single worker, so the cache and pool are shared app-wide.
+# ---------------------------------------------------------------------------
+
+CACHE_TTL = 90  # seconds a client's fetched Sheets data stays fresh
+
+# Persistent pool so each worker thread's Sheets service (built lazily below) is
+# created once and reused across requests.
+_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix='sheets')
+_thread_local = threading.local()
+
+
+def _thread_service():
+    """A Sheets service unique to the calling thread. httplib2 is not
+    thread-safe, so parallel fetches must not share one service; each thread
+    builds its own once and reuses it."""
+    svc = getattr(_thread_local, 'service', None)
+    if svc is None:
+        svc = sc.new_service()
+        _thread_local.service = svc
+    return svc
+
+
+def _card_bundle(spreadsheet_id: str) -> dict:
+    """Cached per-sheet bundle for a client: weight/nutrition data + the
+    last-logged workout. Loader runs on the calling thread's own service."""
+    def load():
+        service = _thread_service()
+        return {
+            'data': sc.fetch_client_data(service, spreadsheet_id),
+            'last_logged': _last_logged_workout(service, spreadsheet_id),
+        }
+    return cache.store.get_or_fetch(f'card:{spreadsheet_id}', CACHE_TTL, load)
+
+
+def _cached_payments(service, master_id: str) -> list:
+    if not master_id:
+        return []
+    return cache.store.get_or_fetch(
+        f'payments:{master_id}', CACHE_TTL,
+        lambda: sc.fetch_payments(service, master_id))
+
+
+def _cached_week_summary(service, spreadsheet_id: str) -> list:
+    return cache.store.get_or_fetch(
+        f'weeks:{spreadsheet_id}', CACHE_TTL,
+        lambda: _week_summary(service, spreadsheet_id))
+
+
+def _invalidate_client_cache(spreadsheet_id: str, master_id: str = '') -> None:
+    """Drop cached reads for a sheet after a write, so the next page is fresh."""
+    cache.store.invalidate(f'card:{spreadsheet_id}')
+    cache.store.invalidate(f'weeks:{spreadsheet_id}')
+    if master_id:
+        cache.store.invalidate(f'payments:{master_id}')
 
 
 # ---------------------------------------------------------------------------
@@ -502,6 +631,7 @@ def build_detail(client: dict, data: dict, payment_rows: list,
         'name': client['name'],
         'plan_usd': client.get('plan_usd', 0),
         'weight_unit': unit,
+        'active': client.get('active', True),
         'status': status,
         'payment_display': pay_display,
         'payment_class': pay_class,
@@ -532,6 +662,8 @@ def _error_card(client, msg):
     return {
         'name': client['name'],
         'plan_usd': client.get('plan_usd', 0),
+        'weight_unit': client.get('weight_unit', 'kg'),
+        'active': client.get('active', True),
         'status': 'red',
         'error': msg,
     }
@@ -539,7 +671,7 @@ def _error_card(client, msg):
 
 @app.route('/')
 def index():
-    clients = _load_clients()
+    clients = _load_clients(active_only=True)
     try:
         service = sc.authenticate()
     except FileNotFoundError:
@@ -547,21 +679,22 @@ def index():
     except sc.ReauthRequired:
         return redirect(url_for('reauth'))
 
-    payment_rows = sc.fetch_payments(service, master_sheet_id())
+    payment_rows = _cached_payments(service, master_sheet_id())
 
-    cards = []
-    for client in clients:
+    def make_card(client):
         try:
-            data = sc.fetch_client_data(service, client['spreadsheet_id'])
-            last_logged = _last_logged_workout(service, client['spreadsheet_id'])
-            cards.append(build_card(client, data, payment_rows, last_logged))
+            bundle = _card_bundle(client['spreadsheet_id'])
+            return build_card(client, bundle['data'], payment_rows,
+                              bundle['last_logged'])
         except HttpError as exc:
             logger.error('HttpError fetching %s: %s', client['name'], exc)
-            cards.append(_error_card(client, 'Error fetching data — check Sheet ID'))
+            return _error_card(client, 'Error fetching data — check Sheet ID')
         except Exception:
             logger.error('Unexpected error for %s', client['name'], exc_info=True)
-            cards.append(_error_card(client, 'Unexpected error — see logs/dashboard.log'))
+            return _error_card(client, 'Unexpected error — see logs/dashboard.log')
 
+    # Fetch every client concurrently (cache-backed); .map preserves order.
+    cards = list(_POOL.map(make_card, clients)) if clients else []
     return render_template('index.html', cards=cards)
 
 
@@ -575,11 +708,11 @@ def client_detail(name):
 
     try:
         service = sc.authenticate()
-        data = sc.fetch_client_data(service, client['spreadsheet_id'])
-        payment_rows = sc.fetch_payments(service, master_sheet_id(client))
-        last_logged = _last_logged_workout(service, client['spreadsheet_id'])
-        week_summary = _week_summary(service, client['spreadsheet_id'])
-        detail = build_detail(client, data, payment_rows, last_logged, week_summary)
+        bundle = _card_bundle(client['spreadsheet_id'])
+        payment_rows = _cached_payments(service, master_sheet_id(client))
+        week_summary = _cached_week_summary(service, client['spreadsheet_id'])
+        detail = build_detail(client, bundle['data'], payment_rows,
+                              bundle['last_logged'], week_summary)
     except FileNotFoundError:
         return _credentials_missing_page()
     except sc.ReauthRequired:
@@ -643,11 +776,18 @@ def guide():
 # ---------------------------------------------------------------------------
 
 def _parse_program_form(form) -> dict:
-    """Build a program dict from posted form fields (used by new + edit)."""
-    schedule = []
-    for i, day in enumerate(db.DAYS, start=1):
-        wt = form.get(f'schedule_{day}', 'Rest') or 'Rest'
-        schedule.append({'day_order': i, 'day_name': day, 'workout_type': wt})
+    """Build a program dict from posted form fields (used by new + edit).
+
+    Sessions are now a dynamic ordered list (``session_label[]``) rather than
+    a fixed Mon–Sun grid.  Each label becomes both ``day_name`` and
+    ``workout_type`` so exercises keep linking by type unchanged.
+    """
+    labels = form.getlist('session_label')
+    schedule = [
+        {'day_order': i, 'day_name': lbl.strip(), 'workout_type': lbl.strip()}
+        for i, lbl in enumerate(labels, 1)
+        if lbl.strip()
+    ]
 
     # Exercise rows are parallel arrays keyed by ex_<field>[].
     exercises = []
@@ -690,8 +830,7 @@ def library_new():
         if not program['name']:
             flash('Program name is required.', 'error')
             return render_template('library_edit.html', program=program,
-                                   days=db.DAYS, workout_types=db.WORKOUT_TYPES,
-                                   mode='new')
+                                   workout_types=db.WORKOUT_TYPES, mode='new')
         try:
             db.create_program(program)
             flash(f"Program '{program['name']}' created.", 'ok')
@@ -699,13 +838,9 @@ def library_new():
         except Exception as exc:
             logger.error('Create program failed: %s', exc)
             flash(f'Could not create program: {exc}', 'error')
-    blank = {'name': '', 'notes': '',
-             'schedule': [{'day_order': i, 'day_name': d, 'workout_type': 'Rest'}
-                          for i, d in enumerate(db.DAYS, start=1)],
-             'exercises': []}
+    blank = {'name': '', 'notes': '', 'schedule': [], 'exercises': []}
     return render_template('library_edit.html', program=blank,
-                           days=db.DAYS, workout_types=db.WORKOUT_TYPES,
-                           mode='new')
+                           workout_types=db.WORKOUT_TYPES, mode='new')
 
 
 @app.route('/library/<int:program_id>/edit', methods=['GET', 'POST'])
@@ -727,18 +862,11 @@ def library_edit(program_id):
                 flash(f'Could not save program: {exc}', 'error')
         updated['id'] = program_id
         return render_template('library_edit.html', program=updated,
-                               days=db.DAYS, workout_types=db.WORKOUT_TYPES,
-                               mode='edit')
-    # Normalise schedule to all 7 days for the editor grid.
-    sched_by_day = {s['day_name']: s['workout_type'] for s in program['schedule']}
-    program['schedule'] = [
-        {'day_order': i, 'day_name': d,
-         'workout_type': sched_by_day.get(d, 'Rest')}
-        for i, d in enumerate(db.DAYS, start=1)
-    ]
+                               workout_types=db.WORKOUT_TYPES, mode='edit')
+    # Pass schedule as-is (dynamic sessions); old day-grid programs will show
+    # their workout_type as the session label — coach can clean up if desired.
     return render_template('library_edit.html', program=program,
-                           days=db.DAYS, workout_types=db.WORKOUT_TYPES,
-                           mode='edit')
+                           workout_types=db.WORKOUT_TYPES, mode='edit')
 
 
 @app.route('/library/<int:program_id>/delete', methods=['POST'])
@@ -753,6 +881,45 @@ def library_delete(program_id):
 # ---------------------------------------------------------------------------
 # New-client wizard — /clients/new
 # ---------------------------------------------------------------------------
+
+def _build_config_payload(data: dict) -> dict:
+    """Build the config dict sent inline to the Apps Script (config-in-POST path).
+
+    Shape matches ``normalizeConfig_`` in Code.gs — keep both in sync.
+    """
+    info = data['info']
+    by_type: dict = {}
+    for ex in data['exercises']:
+        t = ex['workout_type']
+        by_type.setdefault(t, []).append({
+            'ex':    ex['exercise'],
+            'sets':  ex['target_sets'],
+            'reps':  ex['target_reps'],
+            'notes': ex['coach_notes'],
+            'link':  ex['tutorial_url'],
+        })
+    sessions = [
+        {'label': s['workout_type'], 'exercises': by_type.get(s['workout_type'], [])}
+        for s in data['schedule']
+    ]
+    t = data['targets']
+    return {
+        'info': {
+            'name':    info['name'],
+            'email':   info['email'],
+            'program': info['program_name'],
+            'goal':    info['goal'],
+            'start':   info['start_date'],   # dd/mm/yyyy string
+            'unit':    info['weight_unit'],
+            'plan':    info['plan_usd'],
+            'billing': info['billing_day'],
+        },
+        'sessions': sessions,
+        'weeks':    data['weeks'],
+        'targets':  [t['calories'], t['protein'], t['carbs'], t['fat'], t['fiber']],
+        'sleepTarget': data.get('sleep_target', ''),
+    }
+
 
 # Admin-tab write targets in the master sheet (verified layout).
 def _client_setup_updates(data: dict) -> list:
@@ -853,28 +1020,25 @@ def clients_new():
         data = _parse_wizard_form(request.form)
         info = data['info']
 
-        # 1) Fill the master admin tabs (the Apps Script reads these).
-        try:
-            service = sc.authenticate()
-            updates = _client_setup_updates(data)
-            sc.batch_update_values(service, master_sheet_id(), updates)
-        except FileNotFoundError:
-            return _credentials_missing_page()
-        except sc.ReauthRequired:
-            return redirect(url_for('reauth'))
-        except Exception as exc:
-            logger.error('Wizard master write failed: %s', exc, exc_info=True)
-            flash(f'Write to master sheet failed: {exc}', 'error')
+        if not info['name']:
+            flash('Client name is required.', 'error')
             return render_template('client_new.html', programs=db.list_programs(),
-                                   days=db.DAYS, workout_types=db.WORKOUT_TYPES,
+                                   workout_types=db.WORKOUT_TYPES,
                                    wrote_master=False, form=request.form)
 
-        # 2) If the generator web app is configured, do the whole thing in one
-        #    click: run the Apps Script, grab the new sheet, auto-register it.
+        # Stable requestId for idempotency: reuse across retries in the same
+        # wizard session so a network-timeout retry returns the cached sheet.
+        request_id = session.get('wizard_request_id') or secrets.token_hex(16)
+        session['wizard_request_id'] = request_id
+
         webapp_url, _ = _webapp_config()
         if webapp_url:
+            # Config-in-POST path: send everything inline → no ⚙ tab write,
+            # no orphan-sheet race, fully idempotent via requestId.
             try:
-                result = trigger_template_generation()
+                config = _build_config_payload(data)
+                result = trigger_template_generation(config=config,
+                                                     request_id=request_id)
                 new_id = extract_sheet_id(result.get('url', ''))
                 if not new_id:
                     raise RuntimeError('Generator did not return a sheet URL.')
@@ -887,6 +1051,7 @@ def clients_new():
                         'weight_unit': info.get('weight_unit', 'kg'),
                         'active': True,
                     })
+                session.pop('wizard_request_id', None)
                 shared = result.get('sharedWith') or ''
                 tail = (f' Shared with {shared}.'
                         if shared and not shared.startswith('ERROR') else '')
@@ -894,19 +1059,34 @@ def clients_new():
                 return redirect(url_for('client_detail', name=info['name']))
             except Exception as exc:
                 logger.error('Auto-generate failed: %s', exc, exc_info=True)
-                flash(f'Master sheet updated, but auto-generate failed: {exc} '
-                      'You can run Coach Tools → Generate Client Template '
-                      'manually and register the sheet below.', 'error')
+                flash(f'Auto-generate failed: {exc} — you can write the data '
+                      'to the master sheet and generate manually below.', 'error')
                 return render_template('client_new.html', programs=db.list_programs(),
-                                       days=db.DAYS, workout_types=db.WORKOUT_TYPES,
-                                       wrote_master=True, form=request.form)
+                                       workout_types=db.WORKOUT_TYPES,
+                                       wrote_master=False, form=request.form)
 
-        # 3) No web app configured — fall back to the manual generate+register.
+        # Fallback: no web app configured — write the master ⚙ tabs and let
+        # the coach run "Generate Client Template" manually.
+        try:
+            service = sc.authenticate()
+            updates = _client_setup_updates(data)
+            sc.batch_update_values(service, master_sheet_id(), updates)
+        except FileNotFoundError:
+            return _credentials_missing_page()
+        except sc.ReauthRequired:
+            return redirect(url_for('reauth'))
+        except Exception as exc:
+            logger.error('Wizard master write failed: %s', exc, exc_info=True)
+            flash(f'Write to master sheet failed: {exc}', 'error')
+            return render_template('client_new.html', programs=db.list_programs(),
+                                   workout_types=db.WORKOUT_TYPES,
+                                   wrote_master=False, form=request.form)
+
         flash('Data written to the master sheet. Now open the master '
               'spreadsheet and click Coach Tools → Generate Client '
               'Template, then paste the new sheet URL below.', 'ok')
         return render_template('client_new.html', programs=db.list_programs(),
-                               days=db.DAYS, workout_types=db.WORKOUT_TYPES,
+                               workout_types=db.WORKOUT_TYPES,
                                wrote_master=True, form=request.form)
 
     if request.method == 'POST' and action == 'register':
@@ -915,7 +1095,7 @@ def clients_new():
         if not name or not sheet_id:
             flash('Both client name and the new sheet URL/ID are required.', 'error')
             return render_template('client_new.html', programs=db.list_programs(),
-                                   days=db.DAYS, workout_types=db.WORKOUT_TYPES,
+                                   workout_types=db.WORKOUT_TYPES,
                                    wrote_master=True, form=request.form)
         if db.client_exists(name):
             flash(f"A client named '{name}' is already registered.", 'error')
@@ -932,7 +1112,7 @@ def clients_new():
         return redirect(url_for('client_detail', name=name))
 
     return render_template('client_new.html', programs=db.list_programs(),
-                           days=db.DAYS, workout_types=db.WORKOUT_TYPES,
+                           workout_types=db.WORKOUT_TYPES,
                            wrote_master=False, form={})
 
 
@@ -978,6 +1158,101 @@ def clients_add():
         return redirect(url_for('client_detail', name=name))
 
     return render_template('client_add.html', form={})
+
+
+# ---------------------------------------------------------------------------
+# Client management — edit, deactivate, delete (issue #6: real CRUD + cleanup)
+# ---------------------------------------------------------------------------
+
+def _purge_client_artifacts(name: str) -> None:
+    """Remove ALL name-scoped data for a deleted client: Cronometer creds and
+    the cached nutrition view. The Google Sheet in Drive is left untouched."""
+    try:
+        secrets_store.delete_credentials(name)
+    except Exception:
+        logger.warning('Could not clear creds for deleted client %s', name, exc_info=True)
+    try:
+        db.kv_delete(_foods_cache_key(name))
+    except Exception:
+        logger.warning('Could not clear nutrition cache for %s', name, exc_info=True)
+
+
+def _rename_client_artifacts(old_name: str, new_name: str) -> None:
+    """Move name-scoped data when a client is renamed, so creds + nutrition
+    cache stay attached instead of being orphaned — the exact issue #6 bug."""
+    try:
+        secrets_store.rename_credentials(old_name, new_name)
+    except Exception:
+        logger.warning('Could not move creds %s -> %s', old_name, new_name, exc_info=True)
+    try:
+        raw = db.kv_get(_foods_cache_key(old_name))
+        if raw:
+            db.kv_set(_foods_cache_key(new_name), raw)
+            db.kv_delete(_foods_cache_key(old_name))
+    except Exception:
+        logger.warning('Could not move nutrition cache %s -> %s', old_name, new_name, exc_info=True)
+
+
+@app.route('/client/<path:name>/edit', methods=['GET', 'POST'])
+def client_edit(name):
+    name = unquote(name)
+    client = db.get_client_by_name(name)
+    if client is None:
+        abort(404)
+
+    if request.method == 'POST':
+        new_name = (request.form.get('name') or '').strip()
+        new_sheet = (extract_sheet_id(request.form.get('sheet') or '')
+                     or client['spreadsheet_id'])
+        if not new_name:
+            flash('Client name is required.', 'error')
+            return render_template('client_edit.html', client=client, form=request.form)
+        # Renaming onto a DIFFERENT existing client would collide (name is unique).
+        if new_name.lower() != name.lower() and db.client_exists(new_name):
+            flash(f"A client named '{new_name}' already exists.", 'error')
+            return render_template('client_edit.html', client=client, form=request.form)
+
+        db.update_client(name, {
+            'name': new_name,
+            'spreadsheet_id': new_sheet,
+            'master_spreadsheet_id': (request.form.get('master_sheet') or '').strip(),
+            'plan_usd': _to_number(request.form.get('plan'), 0),
+            'weight_unit': (request.form.get('weight_unit') or 'kg').strip(),
+        })
+        if new_name.lower() != name.lower():
+            _rename_client_artifacts(name, new_name)
+        _invalidate_client_cache(client['spreadsheet_id'], master_sheet_id(client))
+        _invalidate_client_cache(new_sheet)
+        flash('Client updated.', 'ok')
+        return redirect(url_for('client_detail', name=new_name))
+
+    return render_template('client_edit.html', client=client, form={})
+
+
+@app.route('/client/<path:name>/toggle', methods=['POST'])
+def client_toggle_active(name):
+    name = unquote(name)
+    client = db.get_client_by_name(name)
+    if client is None:
+        abort(404)
+    new_state = not client.get('active', True)
+    db.set_client_active(name, new_state)
+    flash(f"{name} {'reactivated' if new_state else 'deactivated'}.", 'ok')
+    return redirect(url_for('client_detail', name=name))
+
+
+@app.route('/client/<path:name>/delete', methods=['POST'])
+def client_delete(name):
+    name = unquote(name)
+    client = db.get_client_by_name(name)
+    if client is None:
+        abort(404)
+    _invalidate_client_cache(client['spreadsheet_id'], master_sheet_id(client))
+    db.delete_client(name)
+    _purge_client_artifacts(name)
+    flash(f"Removed '{name}' from the dashboard. Their Google Sheet was left "
+          "untouched in Drive.", 'ok')
+    return redirect(url_for('index'))
 
 
 @app.route('/library/<int:program_id>/json')
@@ -1044,7 +1319,7 @@ def client_log(name):
                             service, client['spreadsheet_id'],
                             [{'range': f'Weight!B{row}',
                               'values': [[_to_number(weight, weight)]]}])
-                        flash(f'Logged {weight} {client.get("weight_unit","kg")} '
+                        flash(f'Logged {weight} {client.get("weight_unit", "kg")} '
                               f'for {raw_date}.', 'ok')
                     except Exception as exc:
                         logger.error('Weight write failed: %s', exc)
@@ -1098,6 +1373,8 @@ def client_log(name):
                         logger.error('Payment write failed: %s', exc)
                         flash(f'Payment write failed: {exc}', 'error')
 
+        # A write just happened — drop cached reads so the next view is fresh.
+        _invalidate_client_cache(client['spreadsheet_id'], master_sheet_id(client))
         return redirect(url_for('client_log', name=name))
 
     return render_template('client_log.html', client=client,
@@ -1154,6 +1431,7 @@ def client_cronometer(name):
                     creds['email'], creds['password'], days=int(pull_days))
                 result = nutrition_sync.sync_to_sheet(
                     service, client['spreadsheet_id'], rows, date_rows=date_rows)
+                _invalidate_client_cache(client['spreadsheet_id'])
                 msg = f"Synced {result['written']} day(s) of calories into the Weight tab."
                 if result['skipped']:
                     span = (f", which covers {result['range_str']}"

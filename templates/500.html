@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% from '_icons.html' import icon %}
+{% block title %}Something went wrong · Coach Khader{% endblock %}
+{% block crumbs %}<span class="here">Error</span>{% endblock %}
+
+{% block content %}
+<div class="empty">
+  {{ icon('warn', 34) }}
+  <p>{{ code or 500 }} — something went wrong.</p>
+  <p class="page-sub" style="margin-top:-0.4rem">
+    {% if message %}{{ message }}{% else %}The error was logged. Try again, or head back to your clients.{% endif %}
+  </p>
+  <a href="{{ url_for('index') }}" class="btn btn-primary" style="margin-top:1rem">{{ icon('users', 16) }} Back to clients</a>
+</div>
+{% endblock %}

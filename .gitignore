@@ -19,3 +19,7 @@ venv/
 
 # OS
 .DS_Store
+
+# Claude Code session files
+.claude/
+CONTINUE_HERE.md
