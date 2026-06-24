@@ -354,7 +354,7 @@ CACHE_TTL = 90  # seconds a client's fetched Sheets data stays fresh
 
 # Persistent pool so each worker thread's Sheets service (built lazily below) is
 # created once and reused across requests.
-_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix='sheets')
+_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix='sheets')
 _thread_local = threading.local()
 
 
