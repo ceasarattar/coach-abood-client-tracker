@@ -4,10 +4,8 @@ import json
 import secrets
 import logging
 import logging.handlers
-import threading
 import urllib.request
 import urllib.error
-from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import unquote, urlparse
 
@@ -352,28 +350,10 @@ def _days_since_last(date_list: list):
 
 CACHE_TTL = 90  # seconds a client's fetched Sheets data stays fresh
 
-# Persistent pool so each worker thread's Sheets service (built lazily below) is
-# created once and reused across requests.
-_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix='sheets')
-_thread_local = threading.local()
-
-
-def _thread_service():
-    """A Sheets service unique to the calling thread. httplib2 is not
-    thread-safe, so parallel fetches must not share one service; each thread
-    builds its own once and reuses it."""
-    svc = getattr(_thread_local, 'service', None)
-    if svc is None:
-        svc = sc.new_service()
-        _thread_local.service = svc
-    return svc
-
-
 def _card_bundle(spreadsheet_id: str) -> dict:
-    """Cached per-sheet bundle for a client: weight/nutrition data + the
-    last-logged workout. Loader runs on the calling thread's own service."""
+    """Cached per-sheet bundle for a client: weight/nutrition data + last workout."""
     def load():
-        service = _thread_service()
+        service = sc.authenticate()
         return {
             'data': sc.fetch_client_data(service, spreadsheet_id),
             'last_logged': _last_logged_workout(service, spreadsheet_id),
@@ -693,8 +673,7 @@ def index():
             logger.error('Unexpected error for %s', client['name'], exc_info=True)
             return _error_card(client, 'Unexpected error — see logs/dashboard.log')
 
-    # Fetch every client concurrently (cache-backed); .map preserves order.
-    cards = list(_POOL.map(make_card, clients)) if clients else []
+    cards = [make_card(c) for c in clients]
     return render_template('index.html', cards=cards)
 
 
